@@ -1,4 +1,5 @@
 import { Rocket } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
@@ -9,6 +10,7 @@ export default function Home() {
         <Rocket />
         Get started
       </Button>
+      <ThemeToggle />
     </main>
   );
 }
