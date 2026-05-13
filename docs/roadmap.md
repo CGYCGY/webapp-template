@@ -86,7 +86,7 @@ The tradeoff: phasing is ~30% slower wall-clock than a single `bun add` blast. T
 - Missing env var fails the build, not runtime
 - `npx convex dev` and `bun run dev` run side-by-side without conflict
 
-**Risk — highest of any phase:** the WorkOS → Convex auth bridge requires Convex to validate the WorkOS JWT. Get this wrong and every downstream query silently runs unauthenticated. Smoke-test with a query that throws on `ctx.auth.getUserIdentity() === null`.
+**Risk — highest of any phase:** the WorkOS → Convex auth bridge requires Convex to validate the WorkOS JWT. Using the official `@convex-dev/workos-authkit` component eliminates the hand-rolled JWT validation risk, but the concrete risk shifts to: wiring the component correctly, matching `WORKOS_CLIENT_ID` across Next.js (`.env.local`) and Convex (`npx convex env set`), and confirming the component is deployed before the user signs in. The failure mode is still silent — every downstream query runs unauthenticated. Smoke-test with `convex/users.ts:whoami`, a query that **throws** when `ctx.auth.getUserIdentity()` returns null. The `/dashboard` page surfaces this as a red error box (bridge broken) vs a yellow warning (bridge OK, webhook not fired) vs clean name/email (fully working).
 
 ---
 
