@@ -41,5 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# convex generated files (created by `npx convex dev`)
-/convex/_generated
+# convex generated files (overwritten by `npx convex dev`, stubs committed)
+/convex/_generated/*.js
+/convex/_generated/server.d.ts
+/convex/_generated/dataModel.d.ts

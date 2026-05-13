@@ -1,6 +1,18 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 
+export const getMe = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return ctx.db
+      .query('users')
+      .withIndex('authId', (q) => q.eq('authId', identity.subject))
+      .unique();
+  },
+});
+
 export const getByAuthId = query({
   args: { authId: v.string() },
   handler: async (ctx, { authId }) => {
