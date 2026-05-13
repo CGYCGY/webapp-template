@@ -75,9 +75,11 @@ The tradeoff: phasing is ~30% slower wall-clock than a single `bun add` blast. T
 **Configure:**
 - `convex/` directory with schema, one query, one mutation
 - `ConvexProviderWithAuth` wired to WorkOS session token
-- WorkOS middleware handling sign-in / sign-out / callback routes
+- WorkOS proxy handling sign-in / sign-out / callback routes (`proxy.ts`, renamed from `middleware.ts` in Next.js 16)
 - `env.ts` declaring server + client env vars with Zod schemas
 - A `users` table in Convex synced from WorkOS on sign-in
+
+> **Implementation note:** the JWT bridge is implemented via the official `@convex-dev/workos-authkit` Convex component (`convex/convex.config.ts` + `convex/auth.config.ts`). This supersedes the hand-rolled `customJwt` provider approach that was previously the only option. The component also handles user sync via WorkOS webhooks (`POST /workos/webhook`) rather than client-side on sign-in — webhooks cover user updates and deletions from the WorkOS dashboard, not just first sign-in.
 
 **Exit criteria:**
 - User can sign in via WorkOS and land on a page that reads their identity from Convex
