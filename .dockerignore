@@ -1,0 +1,25 @@
+.git
+.github
+node_modules
+.next
+out
+build
+coverage
+.vscode
+.idea
+.claude
+docs
+
+# Env files — NEXT_PUBLIC_* are passed via build args, server vars via Coolify
+.env
+.env.*
+!.env.example
+
+# Local dev artifacts
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.log
+
+# Deploy scripts don't belong in the image
+deploy

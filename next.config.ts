@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 import './env';
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  output: 'standalone',
+};
 
 export default nextConfig;
