@@ -110,6 +110,8 @@ The tradeoff: phasing is ~30% slower wall-clock than a single `bun add` blast. T
 - Form rejects invalid input client-side and server-side (Convex re-validates with the same Zod schema)
 - Zustand store survives page navigation; persisted slice survives reload
 
+Layered authz model documented in [docs/auth-layers.md](./auth-layers.md).
+
 **Why after auth:** forms in this stack almost always submit to authenticated mutations, so building them on top of Phase 3 catches real-world wiring (passing identity, handling auth errors) instead of demo wiring.
 
 ---
@@ -152,6 +154,8 @@ The tradeoff: phasing is ~30% slower wall-clock than a single `bun add` blast. T
 
 **Exit criteria:**
 - A new contributor reading `docs/integrations.md` can add any of the four without re-deriving the integration shape.
+
+See [docs/integrations.md](./integrations.md).
 
 ---
 
