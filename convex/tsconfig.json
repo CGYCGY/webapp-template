@@ -10,7 +10,8 @@
     "lib": ["ES2021", "dom"],
     "module": "ESNext",
     "isolatedModules": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true
   },
   "include": ["./**/*.ts", "./**/*.tsx"],
   "exclude": ["node_modules"]

@@ -1,16 +1,54 @@
-/* prettier-ignore */
 /* eslint-disable */
 /**
- * Generated API types — overwritten by `npx convex dev`.
- * Do not edit manually.
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
-import type { FunctionReference } from 'convex/server';
 
-type AnyFunc = FunctionReference<
-  'query' | 'mutation' | 'action',
-  'public' | 'internal'
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from 'convex/server';
+import type * as auth from '../auth.js';
+import type * as http from '../http.js';
+import type * as users from '../users.js';
+
+declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
+  http: typeof http;
+  users: typeof users;
+}>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, 'public'>
 >;
-type AnyModule = Record<string, AnyFunc>;
 
-export declare const api: Record<string, AnyModule>;
-export declare const internal: Record<string, AnyModule>;
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, 'internal'>
+>;
+
+export declare const components: {
+  workOSAuthKit: import('@convex-dev/workos-authkit/_generated/component.js').ComponentApi<'workOSAuthKit'>;
+};

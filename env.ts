@@ -7,18 +7,23 @@ export const env = createEnv({
     WORKOS_API_KEY: z.string().min(1),
     WORKOS_COOKIE_PASSWORD: z.string().min(32),
     WORKOS_WEBHOOK_SECRET: z.string().min(1),
+    WORKOS_ACTION_SECRET: z.string().min(1),
   },
   client: {
     NEXT_PUBLIC_CONVEX_URL: z.string().min(1),
     NEXT_PUBLIC_WORKOS_CLIENT_ID: z.string().min(1),
+    NEXT_PUBLIC_WORKOS_REDIRECT_URI: z.string().url(),
   },
   runtimeEnv: {
     WORKOS_CLIENT_ID: process.env.WORKOS_CLIENT_ID,
     WORKOS_API_KEY: process.env.WORKOS_API_KEY,
     WORKOS_COOKIE_PASSWORD: process.env.WORKOS_COOKIE_PASSWORD,
     WORKOS_WEBHOOK_SECRET: process.env.WORKOS_WEBHOOK_SECRET,
+    WORKOS_ACTION_SECRET: process.env.WORKOS_ACTION_SECRET,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_WORKOS_CLIENT_ID: process.env.NEXT_PUBLIC_WORKOS_CLIENT_ID,
+    NEXT_PUBLIC_WORKOS_REDIRECT_URI:
+      process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI,
   },
   emptyStringAsUndefined: true,
 });

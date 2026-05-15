@@ -1,9 +1,4 @@
-import {
-  getSignInUrl,
-  getSignUpUrl,
-  signOut,
-  withAuth,
-} from '@workos-inc/authkit-nextjs';
+import { signOut, withAuth } from '@workos-inc/authkit-nextjs';
 import { Rocket } from 'lucide-react';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -11,8 +6,6 @@ import { Button } from '@/components/ui/button';
 
 export default async function Home() {
   const { user } = await withAuth();
-  const signInUrl = await getSignInUrl();
-  const signUpUrl = await getSignUpUrl();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-24">
@@ -37,10 +30,10 @@ export default async function Home() {
         </form>
       ) : (
         <div className="flex gap-2">
-          <Link href={signInUrl} className="underline">
+          <Link href="/auth/sign-in" className="underline">
             Sign in
           </Link>
-          <Link href={signUpUrl} className="underline">
+          <Link href="/auth/sign-up" className="underline">
             Sign up
           </Link>
         </div>

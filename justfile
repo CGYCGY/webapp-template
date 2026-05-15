@@ -21,7 +21,8 @@ dev:
     #!/usr/bin/env bash
     set -euo pipefail
     if command -v tmux &>/dev/null && [ -z "${TMUX:-}" ]; then
-        tmux new-session -d -s dev 'bunx convex dev'
+        mkdir -p ./.convex-tmp
+        tmux new-session -d -s dev 'CONVEX_TMPDIR=./.convex-tmp bunx convex dev'
         tmux split-window -h -t dev 'bun run dev'
         tmux attach -t dev
     else
@@ -40,10 +41,12 @@ dev-stop:
     pkill -f 'next dev' 2>/dev/null && echo "Killed Next.js dev process."
     echo "Dev stopped."
 
-# Start Convex dev sync only (watches convex/, pushes to deployment)
+# Start Convex dev sync only (watches convex/, pushes to deployment).
+# CONVEX_TMPDIR keeps esbuild's tmp on the same filesystem as the project — required on
+# WSL where /tmp lives on a different filesystem and triggers duplicate-output errors.
 [group('dev')]
 dev-convex:
-    bunx convex dev
+    mkdir -p ./.convex-tmp && CONVEX_TMPDIR=./.convex-tmp bunx convex dev
 
 # Start Next.js dev server only
 [group('dev')]
