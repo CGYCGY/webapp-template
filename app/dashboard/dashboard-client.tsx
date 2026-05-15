@@ -3,6 +3,7 @@
 import { useQuery } from 'convex/react';
 import type { FunctionReference } from 'convex/server';
 import { api } from '@/convex/_generated/api';
+import { formatRelativeFromNow } from '@/lib/date';
 
 type WhoamiApi = {
   whoami: FunctionReference<
@@ -13,12 +14,23 @@ type WhoamiApi = {
   >;
 };
 
+type MeRow = {
+  _id: string;
+  _creationTime: number;
+  authId: string;
+  email: string;
+  name: string;
+  displayName?: string;
+  bio?: string;
+  updatedAt?: number;
+};
+
 type UsersApi = {
   getMe: FunctionReference<
     'query',
     'public',
     Record<string, never>,
-    { authId: string; email: string; name: string } | null
+    MeRow | null
   >;
 };
 
@@ -55,15 +67,21 @@ export function DashboardClient() {
     );
   }
 
+  const displayName = me.displayName ?? me.name;
+  const lastUpdated = me.updatedAt ?? me._creationTime;
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-24">
+    <section className="flex flex-col gap-3">
       <h1 className="text-2xl font-bold">Dashboard</h1>
       <p>
-        <span className="font-medium">Name:</span> {me.name}
+        <span className="font-medium">Name:</span> {displayName}
       </p>
       <p>
         <span className="font-medium">Email:</span> {me.email}
       </p>
-    </main>
+      <p className="text-sm text-muted-foreground">
+        Last updated {formatRelativeFromNow(lastUpdated)}
+      </p>
+    </section>
   );
 }
