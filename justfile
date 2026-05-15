@@ -149,6 +149,17 @@ fmt:
 check:
     bun run check
 
+# Run Vitest unit tests once (CI mode)
+[group('quality')]
+test:
+    bun run test
+
+# Run Playwright E2E smoke test. Requires Convex dev running and a verified
+# WorkOS user in .env.test (see docs/phase-5-smoke-test.md).
+[group('quality')]
+e2e:
+    bun run e2e
+
 # ============================================================================
 # DEPENDENCIES
 # ============================================================================

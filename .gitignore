@@ -33,7 +33,13 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.local.example
+!.env.test.example
 !deploy/.env.deploy.example
+
+# e2e secrets (real test-user credentials, never commit)
+/docs/test_cred.md
+/playwright-report/
+/test-results/
 
 # vercel
 .vercel
