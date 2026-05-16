@@ -1,6 +1,6 @@
 # webapp-template
 
-Opinionated starter for full-stack web apps. Built in six phases (see [docs/roadmap.md](docs/roadmap.md)) so each layer lands green before the next is added.
+Opinionated starter for full-stack web apps.
 
 ## Stack
 
@@ -78,7 +78,6 @@ __tests__/        Vitest unit tests
 
 ## Docs
 
-- [docs/roadmap.md](docs/roadmap.md) — phase-by-phase build plan and rationale
 - [docs/auth-layers.md](docs/auth-layers.md) — layered authz model (WorkOS → Convex → mutations)
 - [docs/integrations.md](docs/integrations.md) — deferred integrations (Resend, Paddle, pino, Vercel AI SDK)
 - `docs/phase-{3,4,5}-smoke-test.md` — manual smoke-test runbooks

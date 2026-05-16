@@ -186,7 +186,7 @@ export async function POST(req: Request) {
 }
 ```
 
-**Vector search** — if you need RAG, use Convex's built-in `vectorIndex` (see roadmap "Capability defaults"). Embed with `embed()` from the AI SDK inside a Convex action, store the vector on the row, query with `ctx.db.query(...).withSearchIndex(...)`. Don't add Pinecone.
+**Vector search** — if you need RAG, use Convex's built-in `vectorIndex`. Embed with `embed()` from the AI SDK inside a Convex action, store the vector on the row, query with `ctx.db.query(...).withSearchIndex(...)`. Don't add Pinecone.
 
 ---
 
