@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import { PostHogProvider } from '@/lib/posthog';
 import './globals.css';
 
 const geistSans = Geist({
@@ -31,16 +32,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <ConvexClientProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-        </ConvexClientProvider>
+        <PostHogProvider>
+          <ConvexClientProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+            </ThemeProvider>
+          </ConvexClientProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
