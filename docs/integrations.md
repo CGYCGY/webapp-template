@@ -1,14 +1,54 @@
-# Deferred Integrations
+# Integrations
 
-This template intentionally ships without four common integrations — email, payments, structured logging, and LLM features. They are out of scope for the core spine but well-shaped enough that adding them later is a recipe, not a research project.
+This template ships with three installed integrations (Sentry, PostHog, Cloudflare R2) and documents four deferred ones (Resend, Paddle, pino, Vercel AI SDK) as recipes for later. Installed integrations are wired into the codebase and gated by env vars; deferred integrations are not in `package.json` until you install them.
 
-This document is the recipe. For each integration, it lists **when** to install (the trigger that makes it worth the dependency), **what** env vars are needed, **where** the code lands in this repo, and **how** it slots into the existing patterns (Convex mutations / actions / HTTP routes, `env.ts`, `lib/`).
-
-If you find yourself adding one of these, follow the shape below. If you need a fifth, write its section first — the discipline of pre-shaping the integration is what keeps the template from sprawling.
+For each entry, this doc lists **when** to install, **what** env vars are needed, **where** the code lives, and **how** it slots into the existing patterns (Convex mutations / actions / HTTP routes, `env.ts`, `lib/`).
 
 ---
 
-## Resend — transactional email
+## Installed
+
+### Sentry — crash + performance reporting
+
+- **When to install:** shipped with the template. Active when `SENTRY_DSN` is set.
+- **Install:** already in deps (`@sentry/nextjs`).
+- **Env vars** (`env.ts` server block: `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — all optional; client block: `NEXT_PUBLIC_SENTRY_DSN`, optional).
+- **Where the code lives:**
+  - `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts` — DSN-gated init per runtime.
+  - `instrumentation.ts` — wires server/edge configs via `NEXT_RUNTIME`; re-exports `Sentry.captureRequestError` as `onRequestError`.
+  - `app/global-error.tsx` — root App Router error boundary, calls `Sentry.captureException`.
+  - `next.config.ts` — wrapped with `withSentryConfig(...)` for sourcemap upload + tunnel route.
+- **Pattern:** errors auto-captured client-side and via instrumentation server-side. For manual capture: `import * as Sentry from '@sentry/nextjs'; Sentry.captureException(error)`. Build-time sourcemap upload requires `SENTRY_AUTH_TOKEN` as a CI secret. See `docs/sentry.md` for full setup.
+
+### PostHog — product analytics
+
+- **When to install:** shipped with the template. Inactive until `NEXT_PUBLIC_POSTHOG_KEY` is set.
+- **Install:** already in deps (`posthog-js`, `posthog-node`).
+- **Env vars** (`env.ts` client block: `NEXT_PUBLIC_POSTHOG_KEY` required, `NEXT_PUBLIC_POSTHOG_HOST` optional with default `https://us.i.posthog.com`).
+- **Where the code lives:**
+  - `lib/posthog/client.tsx` — `'use client'` `<PostHogProvider>`, init in `useEffect`, pageview capture configured.
+  - `lib/posthog/server.ts` — `posthog-node` singleton via `getPostHogServer()`. Caller must `await client.shutdown()` in long-lived Node contexts.
+  - `lib/posthog/identify.ts` — `identifyUserOnSignIn(user)` and `resetPostHogOnSignOut()` helpers; call from WorkOS callback or a client-side auth hook.
+  - `app/PostHogPageView.tsx` — App Router pathname/searchParams listener, captures `$pageview`.
+  - `app/layout.tsx` — wrapped in `<PostHogProvider>`.
+- **Pattern:** call `posthog.capture('event_name', { props })` from any client component; server-side `getPostHogServer().capture(...)` for server actions / route handlers. Identify on sign-in to enable cross-device user tracking. See `docs/posthog.md`.
+
+### Cloudflare R2 — file storage
+
+- **When to install:** shipped with the template. Inactive until `R2_*` env vars are set on Convex (`npx convex env set R2_ACCOUNT_ID ...`).
+- **Install:** already in deps (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`).
+- **Env vars:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (required), `R2_PUBLIC_BASE_URL` (optional). Set via `npx convex env set` — these live in **Convex runtime**, NOT in `env.ts` (Next.js app never sees them).
+- **Where the code lives:**
+  - `convex/r2.ts` — `'use node'` action exports `generatePresignedPutUrl` (5min) and `generatePresignedGetUrl` (1h). Auth-gated via `ctx.auth.getUserIdentity()`. Keys default to `uploads/<authSubject>/<uuid>`.
+  - `lib/r2/upload.ts` — `useR2Upload()` hook. Returns async `({ file, contentType?, key? }) => { key, etag? }`. Uses `useAction` + browser `fetch` PUT.
+  - `lib/r2/download.ts` — `useR2Url()` hook. Async `(key) => url`.
+- **Pattern:** client calls `useR2Upload()` hook → Convex action mints presigned PUT URL → browser PUTs file directly to R2 → client stores returned key in Convex via a separate mutation. Bucket CORS must allow PUT/GET from app origins; see `docs/r2.md`.
+
+---
+
+## Deferred
+
+### Resend — transactional email
 
 **When to install:** the moment you need to send an email the user didn't initiate themselves in the same request (welcome email after sign-up, password reset, payment receipt, weekly digest). For form-confirmation toasts and inline UI, no email is needed.
 
@@ -47,7 +87,7 @@ await ctx.scheduler.runAfter(0, internal.emails.sendWelcome, {
 
 ---
 
-## Paddle — payments / Merchant of Record
+### Paddle — payments / Merchant of Record
 
 **When to install:** the day you charge real money. For "soft" paid tiers gated by a boolean flag, you can stub this; for anything that touches taxes, refunds, or chargebacks, install. Paddle as MoR means they handle global VAT/sales tax — that is the reason to pick them over Stripe for a small team.
 
@@ -103,7 +143,7 @@ Server-side gates call this in mutations; client-side gates call it via `useQuer
 
 ---
 
-## pino — structured logging
+### pino — structured logging
 
 **When to install:** when grepping `console.log` in production logs stops scaling. In practice, around the point you have more than one developer or you wire a log shipper (Datadog, Loki, Better Stack). Until then, `console.log` is fine.
 
@@ -138,7 +178,7 @@ LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default(
 
 ---
 
-## Vercel AI SDK — LLM features
+### Vercel AI SDK — LLM features
 
 **When to install:** the moment a feature needs an LLM in the request path (chat UI, generate-from-prompt, structured extraction). Don't install to "be ready for AI features later" — it's a stack the moment you commit to it.
 
@@ -190,7 +230,7 @@ export async function POST(req: Request) {
 
 ---
 
-## Checklist when adding any of the four
+## Checklist when installing a new integration
 
 1. Add env vars to `env.ts` (server vs client block matters — server keys never appear in the client bundle).
 2. Add the same vars to `.env.local`; if Convex needs them, `just env-sync`.
@@ -200,4 +240,4 @@ export async function POST(req: Request) {
    - **Payments webhooks** → Convex HTTP route via `httpRouter`.
    - **Logging** → no Convex wiring; the helper is consumed in-place.
 5. If the integration sends webhooks, mirror the WorkOS pattern in `convex/auth.ts` + `convex/http.ts` for signature verification and event dispatch.
-6. Add the integration's name to `docs/integrations.md` under "Installed" once it ships, with a one-line link to the file or table where its state lives.
+6. Add an entry under `## Installed` here, plus a stack-table row in `.claude/skills/dev-guidelines/SKILL.md` and a one-liner in `.claude/skills/dev-guidelines/decisions.md`.

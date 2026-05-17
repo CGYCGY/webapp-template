@@ -139,6 +139,36 @@ await ctx.scheduler.runAfter(0, internal.emails.sendWelcome, { userId });
 
 This decouples the side effect from the mutation's transactional success.
 
+### `'use node'` actions
+
+Use `'use node'` at the top of a Convex file when the action requires a Node runtime feature (file system, `@aws-sdk/*`, native Node modules). Without it, actions run in the V8 isolate — faster, but no Node API.
+
+Canonical example: `convex/r2.ts` — uses `@aws-sdk/client-s3` to mint presigned URLs.
+
+```ts
+'use node';
+
+import { S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { action } from './_generated/server';
+import { v } from 'convex/values';
+
+export const generatePresignedPutUrl = action({
+  args: { contentType: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Unauthorized');
+    // ... build S3Client, sign URL, return { url, key }
+  },
+});
+```
+
+Rules:
+
+- `'use node'` files can only export `action` and `httpAction`. Queries and mutations stay in V8-isolate files.
+- Auth-gate every action: `ctx.auth.getUserIdentity()` then throw if absent.
+- Read env via `process.env.R2_*` (Convex runtime). Do NOT add Convex-only env vars to `env.ts`.
+
 ## Diagnostic queries
 
 Add a `whoami`-style query that intentionally throws when there is no identity, so a broken JWT bridge surfaces immediately rather than silently returning `null` from downstream queries. Wrap the consuming page in an error boundary (see `reference/architecture.md` → Error handling).

@@ -106,5 +106,25 @@ Format: decision · rationale · affected files · stability note.
 ## 15. Deferred integrations follow the recipe in `docs/integrations.md`
 
 - Resend, Paddle, pino, Vercel AI each have a fixed shape: `env.ts` block, `lib/<integration>.ts` helper, Convex layer (mutation / action / httpAction), webhook pattern mirroring `authKit.events()`.
-- `docs/integrations.md` is authoritative. A fifth integration must write its recipe before code.
+- `docs/integrations.md` is authoritative. A new deferred integration must write its recipe before code.
+- Do not change without updating this skill.
+
+## 16. File storage is Cloudflare R2 via a Convex `'use node'` action, not Convex built-in storage
+
+- Upload/download go through presigned URLs minted by `convex/r2.ts`; client uploads direct to R2 via `lib/r2/upload.ts`.
+- Rationale: bucket shared with mobile, free R2 egress, no per-file size cap.
+- R2 credentials live in Convex env (`npx convex env set R2_*`), not `env.ts`.
+- Do not change without updating this skill.
+
+## 17. Crash reporting is Sentry (`@sentry/nextjs`), DSN-gated
+
+- Init in `sentry.{client,server,edge}.config.ts` + `instrumentation.ts`; `next.config.ts` is wrapped with `withSentryConfig`.
+- Root error boundary is `app/global-error.tsx` (not `error.tsx`).
+- DSN-gated so the template builds without Sentry configured. Source-map upload requires `SENTRY_AUTH_TOKEN`.
+- Do not change without updating this skill.
+
+## 18. Product analytics is PostHog, one project ID across web + mobile
+
+- Provider in `lib/posthog/client.tsx`, server client in `lib/posthog/server.ts`, identify in `lib/posthog/identify.ts`, pageview in `app/PostHogPageView.tsx`.
+- Same `NEXT_PUBLIC_POSTHOG_KEY` is used by mobile so analytics are unified per user.
 - Do not change without updating this skill.

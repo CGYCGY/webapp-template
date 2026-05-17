@@ -18,6 +18,7 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 | Framework | Next.js 16 App Router with `proxy.ts` (not `middleware.ts`) |
 | Next output | `output: 'standalone'` |
 | Backend | Convex (queries / mutations / actions / http) |
+| File storage | Cloudflare R2 via Convex `'use node'` action (`convex/r2.ts`); client hooks in `lib/r2/` |
 | Auth | WorkOS AuthKit bridged to Convex via `@convex-dev/workos-authkit`, 4-layer model |
 | Env | `@t3-oss/env-nextjs` + Zod, `import './env'` from `next.config.ts` |
 | Forms | Zod v4 + React Hook Form + `zodResolver`; schemas in `convex/schemas/` |
@@ -27,6 +28,8 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 | Icons | Lucide, `size-4` default |
 | Theme | `next-themes` `class` attribute + mount-gate against hydration mismatch |
 | Date | `date-fns` v4 via `lib/date.ts` wrapper |
+| Crash reporting | Sentry (`@sentry/nextjs`); init in `sentry.{client,server,edge}.config.ts` + `instrumentation.ts`; root boundary at `app/global-error.tsx` |
+| Analytics | PostHog (`posthog-js` + `posthog-node`); provider in `lib/posthog/client.tsx`; pageview in `app/PostHogPageView.tsx` |
 | Lint / format | Biome 2, single-quote JS, double-quote JSX, 2-space indent, organize imports on |
 | Git hooks | Lefthook (pre-commit Biome, pre-push Vitest) |
 | Unit tests | Vitest + jsdom + Testing Library, `vite-tsconfig-paths` |
@@ -94,7 +97,7 @@ No comments unless they document a non-obvious *why*. No JSDoc. No commented-out
 | `reference/forms-and-validation.md` | Writing a form or a Zod schema |
 | `reference/ui-and-styling.md` | Adding components, variants, icons, theme-aware UI |
 | `reference/state-and-stores.md` | Adding a Zustand store or persisting client state |
-| `reference/env-and-deploy.md` | Adding env vars, changing the Dockerfile, or modifying deploy flow |
+| `reference/env-and-deploy.md` | Adding env vars (or splitting Convex-runtime vs Next.js-runtime env vars), changing the Dockerfile, or modifying deploy flow |
 | `reference/testing.md` | Writing unit or E2E tests |
 | `examples/feature-walkthrough.md` | Adding a new user-data feature — anatomy across the 6 layers |
 | `examples/auth-bridge.md` | Understanding or extending the WorkOS↔Convex bridge (JWT + webhook dispatch) |

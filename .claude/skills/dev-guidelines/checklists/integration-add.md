@@ -4,9 +4,9 @@ This codebase intentionally ships without Resend, Paddle, pino, or Vercel AI SDK
 
 ## Pre-flight
 
-- [ ] Read the relevant section of `docs/integrations.md` (Resend, Paddle, pino, or Vercel AI SDK).
+- [ ] Read the relevant section of `docs/integrations.md` (any deferred integration).
 - [ ] Confirm the trigger is real. "Be ready for X later" is not a trigger; "we need to send a welcome email" is.
-- [ ] If adding a fifth integration, write its `docs/integrations.md` section **first** (when / env / where / how), then start the checklist.
+- [ ] If adding a new deferred integration, write its `docs/integrations.md` section **first** (when / env / where / how), then start the checklist.
 
 ## 1. Env vars
 
@@ -21,7 +21,7 @@ This codebase intentionally ships without Resend, Paddle, pino, or Vercel AI SDK
 
 ## 2. Helper module
 
-- [ ] Create `lib/<integration>.ts` as the **single entry point**.
+- [ ] Create `lib/<integration>.ts` (single file) OR `lib/<integration>/` (subdir with `index.ts` barrel) when client/server split or multiple concerns force it. Example: `lib/posthog/` (client/server split), `lib/r2/` (upload + download).
 - [ ] Add `import 'server-only';` if it uses server-only secrets (mirrors `lib/convex-server.ts`).
 - [ ] Export named functions (`sendEmail`, `getSubscription`, etc.). No default export.
 - [ ] Reads env via `import { env } from '@/env'`, never `process.env`.
@@ -57,6 +57,9 @@ This codebase intentionally ships without Resend, Paddle, pino, or Vercel AI SDK
 | Paddle | MoR — they handle taxes. Don't store payment-method data. Webhook signature uses `PADDLE_WEBHOOK_SECRET`. Entitlement checks via Convex query, not client state. |
 | pino | Sandboxed in Convex V8 isolates — transports don't work in queries/mutations, only in actions. Use the `redact` option to strip secrets centrally. |
 | Vercel AI SDK | Anthropic is the default provider. Model constant in `lib/ai.ts`. Stream from a route handler or a Convex `action`. |
+| Sentry | DSN-gated init — template builds without it. Source-map upload needs `SENTRY_AUTH_TOKEN` as a CI secret. Use `app/global-error.tsx` not `error.tsx` for root boundary. |
+| PostHog | `getPostHogServer()` needs explicit `await client.shutdown()` in long-lived Node contexts. Identify on sign-in via `lib/posthog/identify.ts`. |
+| Cloudflare R2 | Env vars live in Convex runtime (`npx convex env set`), NOT in `env.ts`. Bucket CORS must allow PUT from app origin. Client uploads direct to R2, never proxies through Convex. |
 
 ## Pitfalls
 

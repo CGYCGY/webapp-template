@@ -40,14 +40,16 @@ import './env';
 
 Importing `env.ts` from the Next config makes `bun run build` fail when a required var is missing. The Dockerfile sets `SKIP_ENV_VALIDATION=1` at build time only — the runtime container revalidates against real envs.
 
-## `.env.local` and Convex env
+## Two env runtimes
 
-Two separate stores of env vars:
+| Runtime | Validated by | Set via | Examples |
+|---|---|---|---|
+| Next.js app | `env.ts` (`@t3-oss/env-nextjs`) | `.env.local` (`.env.production` for prod build) | `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `SENTRY_DSN`, `WORKOS_API_KEY` |
+| Convex backend | none — accessed via `process.env` in queries/mutations/actions | `bunx convex env set KEY VALUE` (or `just env-set`) | `R2_ACCOUNT_ID`, `R2_SECRET_ACCESS_KEY`, `WORKOS_WEBHOOK_SECRET` |
 
-1. **Next.js** reads `.env.local` (and `.env.production` for prod builds).
-2. **Convex** reads its own env, set via `bunx convex env set KEY VALUE`.
+Vars used in BOTH runtimes (e.g. `WORKOS_*` when Convex calls WorkOS): keep in `env.ts`, then `just env-sync` reads `.env.local`, filters for the configured prefixes, and pushes them to Convex. Run it after editing any synced var.
 
-Anything used inside a Convex handler must be set in Convex env. `WORKOS_*` keys are needed by both, so `just env-sync` reads `.env.local`, filters for the `WORKOS_` prefix, and pushes them to Convex. Run it after editing any `WORKOS_*` var.
+Rule: if **only** Convex reads a var, do NOT add it to `env.ts` — it noises up validation for no benefit. `R2_*` are the canonical Convex-only example.
 
 ## When you add a new env var
 
@@ -77,6 +79,13 @@ Orchestrates: build → push to GHCR → trigger Coolify webhook.
 - Coolify webhook needs `COOLIFY_WEBHOOK_URL` and `COOLIFY_API_TOKEN` in `deploy/.env.deploy`.
 
 Run via `just deploy [tag]`.
+
+## Integration env vars
+
+Set by the Sentry / PostHog / R2 backport. See `docs/integrations.md` for usage; this is just the inventory.
+
+- **Next.js app (`env.ts`)**: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`.
+- **Convex-only** (`bunx convex env set`): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`. Do NOT add to `env.ts`.
 
 ## Don't
 

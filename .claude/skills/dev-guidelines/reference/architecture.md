@@ -51,6 +51,7 @@ deploy/                 ← Dockerfile, deploy.sh, .env.deploy
 3. New shared component → `components/<name>.tsx`; if it's a primitive variant, `components/ui/<name>.tsx`.
 4. New side effect (email, payment, LLM) → Convex `action`. Triggered from a mutation via `ctx.scheduler.runAfter(0, internal.<feature>.<fn>, args)`.
 5. New webhook receiver → `convex/<provider>.ts` exporting an `httpAction`, registered in `convex/http.ts` next to `authKit.registerRoutes(http)`.
+6. File upload → presigned URL from Convex `'use node'` action (`convex/r2.ts`). Client uploads direct to R2 via `lib/r2/upload.ts` (`useR2Upload` hook), then stores the returned key via a separate mutation. Bucket CORS must allow PUT from the app origin.
 
 ## SoC reminders
 
@@ -63,6 +64,12 @@ deploy/                 ← Dockerfile, deploy.sh, .env.deploy
 ## Error handling
 
 React error boundaries must be class components — the hook API doesn't expose error catching. Use them sparingly: only where a *diagnostic* throw needs to surface as actionable UI (e.g. a query that intentionally throws when the JWT bridge is broken).
+
+### Sentry-wired root boundary
+
+`app/global-error.tsx` is the App Router root error boundary. It is wired to Sentry — uncaught errors that bubble past every other boundary land there and are sent to Sentry via `Sentry.captureException`. It replaces the root layout when it renders, so it must include `<html><body>`.
+
+Do NOT remove or replace `app/global-error.tsx`. Per-component class boundaries (below) remain the way to show actionable diagnostic UI for known-failure surfaces.
 
 ### Canonical class boundary
 
