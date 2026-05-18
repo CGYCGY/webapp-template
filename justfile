@@ -173,3 +173,22 @@ install:
 [group('deps')]
 update:
     bun update
+
+# ============================================================================
+# MIRROR MODE (optional)
+# ============================================================================
+# If this product later gains a mobile sibling (e.g. ../mobile-template) that
+# shares the same Convex backend, mobile owns convex/ and this repo mirrors it.
+# Adjust the path and uncomment to enable.
+#
+# mobile := "../mobile-template"
+#
+# # Pull convex/ from mobile (one-way; mobile is the source of truth)
+# [group('mirror')]
+# sync-convex:
+#     rsync -a --delete {{ mobile }}/convex/ ./convex/
+#
+# # Run convex dev from the mobile repo (backend lives there)
+# [group('mirror')]
+# convex-mobile:
+#     cd {{ mobile }} && bunx convex dev
