@@ -4,6 +4,7 @@ import { DashboardSidebar } from '@/components/dashboard-sidebar';
 import { api } from '@/convex/_generated/api';
 import { fetchAuthedQuery } from '@/lib/convex-server';
 import { DashboardHeader } from './dashboard-header';
+import { MeProvider } from './me-context';
 
 export default async function DashboardLayout({
   children,
@@ -17,12 +18,14 @@ export default async function DashboardLayout({
   if (!me?.displayName) redirect('/onboarding');
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <div className="flex flex-1">
-        <DashboardSidebar />
-        <main className="flex-1 p-6">{children}</main>
+    <MeProvider value={me}>
+      <div className="flex min-h-screen flex-col">
+        <DashboardHeader />
+        <div className="flex flex-1">
+          <DashboardSidebar />
+          <main className="flex-1 p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </MeProvider>
   );
 }

@@ -1,53 +1,23 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import type { FunctionReference } from 'convex/server';
 import { api } from '@/convex/_generated/api';
 import { formatRelativeFromNow } from '@/lib/date';
-
-type WhoamiApi = {
-  whoami: FunctionReference<
-    'query',
-    'public',
-    Record<string, never>,
-    { subject: string; tokenIdentifier: string }
-  >;
-};
-
-type MeRow = {
-  _id: string;
-  _creationTime: number;
-  authId: string;
-  email: string;
-  name: string;
-  displayName?: string;
-  bio?: string;
-  updatedAt?: number;
-};
-
-type UsersApi = {
-  getMe: FunctionReference<
-    'query',
-    'public',
-    Record<string, never>,
-    MeRow | null
-  >;
-};
+import { useMe } from './me-context';
 
 export function DashboardClient() {
-  const whoamiApi = api.users as unknown as WhoamiApi;
-  const usersApi = api.users as unknown as UsersApi;
+  const me = useMe();
 
-  // whoami throws when the JWT bridge is broken — BridgeErrorBoundary catches it.
-  const whoami = useQuery(whoamiApi.whoami);
-  const me = useQuery(usersApi.getMe);
+  // Diagnostic only when the layout's server-side getMe returned null —
+  // distinguishes "JWT bridge broken" (whoami throws) from "webhook hasn't
+  // synced yet" (whoami returns). Skipped on the happy path so we don't pay
+  // for a subscription on every dashboard view.
+  const whoami = useQuery(api.users.whoami, me === null ? {} : 'skip');
 
-  if (whoami === undefined || me === undefined) {
-    return <p className="p-8 text-muted-foreground">Checking bridge…</p>;
-  }
-
-  // Bridge is working (whoami returned) but webhook hasn't synced the user row yet.
   if (me === null) {
+    if (whoami === undefined) {
+      return <p className="p-8 text-muted-foreground">Checking bridge…</p>;
+    }
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-24">
         <h1 className="text-2xl font-bold">Dashboard</h1>

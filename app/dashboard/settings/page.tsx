@@ -1,8 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery } from 'convex/react';
-import { useEffect, useState } from 'react';
+import { useMutation } from 'convex/react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,26 +20,21 @@ import {
   type ProfileFormInput,
   profileFormSchema,
 } from '@/convex/schemas/profile';
+import { useMe } from '../me-context';
 
 export default function SettingsPage() {
-  const me = useQuery(api.users.getMe);
+  const me = useMe();
   const updateProfile = useMutation(api.users.updateProfile);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const form = useForm<ProfileFormInput>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues: { displayName: '', bio: '' },
+    defaultValues: {
+      displayName: me?.displayName ?? '',
+      bio: me?.bio ?? '',
+    },
   });
-
-  useEffect(() => {
-    if (me) {
-      form.reset({
-        displayName: me.displayName ?? '',
-        bio: me.bio ?? '',
-      });
-    }
-  }, [me, form]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null);
@@ -55,10 +50,6 @@ export default function SettingsPage() {
       );
     }
   });
-
-  if (me === undefined) {
-    return <p className="p-8 text-muted-foreground">Loading…</p>;
-  }
 
   if (me === null) {
     return (
