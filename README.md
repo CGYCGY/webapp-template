@@ -8,7 +8,7 @@ Opinionated starter for full-stack web apps.
 - **Bun** — package manager + runtime
 - **Convex** — DB, realtime, file storage, scheduled functions, search, vector search
 - **WorkOS AuthKit** — auth, bridged to Convex via `@convex-dev/workos-authkit`
-- **Tailwind v4** + **shadcn/ui** + **Base UI** + **Lucide** + **Motion**
+- **Tailwind v4** + **shadcn/ui** + **Base UI** + **Lucide**
 - **React Hook Form** + **Zod** (`@hookform/resolvers`)
 - **Zustand** (with `persist`), **date-fns**, **next-themes**
 - **`@t3-oss/env-nextjs`** — env vars validated at boot
