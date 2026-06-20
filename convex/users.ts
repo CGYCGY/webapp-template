@@ -37,16 +37,6 @@ export const getMe = query({
   },
 });
 
-export const getByAuthId = query({
-  args: { authId: v.string() },
-  handler: async (ctx, { authId }) => {
-    return ctx.db
-      .query('users')
-      .withIndex('authId', (q) => q.eq('authId', authId))
-      .unique();
-  },
-});
-
 export const getByAuthIdInternal = internalQuery({
   args: { authId: v.string() },
   handler: async (ctx, { authId }) => {
