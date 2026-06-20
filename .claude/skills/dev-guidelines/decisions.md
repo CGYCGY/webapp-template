@@ -36,9 +36,10 @@ Format: decision · rationale · affected files · stability note.
 - Do not define a separate "API" schema. One file, two consumers.
 - Do not change without updating this skill.
 
-## 5. Convex mutations call `getUserIdentity()` then `parse()` before any DB write
+## 5. Convex mutations call `getUserIdentity()` then `parseOrThrow(schema, args)` before any DB write
 
-- This is Layer 4 enforcement.
+- This is Layer 4 enforcement. `parseOrThrow` (`convex/lib/validate.ts`) `throw`s a `ConvexError` on invalid input; authz failures also `throw new ConvexError({ message })`.
+- Client unwraps the thrown message via `errorMessage(err)` (`convex/lib/errorMessage.ts`), which brand-detects `ConvexError` across `convex` copies.
 - Every mutation in `convex/<domain>.ts` follows this shape.
 - Public mutations without these two calls are a data leak.
 - Do not change without updating this skill.
@@ -78,7 +79,7 @@ Format: decision · rationale · affected files · stability note.
 
 ## 11. Bun is the package manager and runtime; multi-stage alpine Dockerfile builds standalone
 
-- `oven/bun:1.2-alpine` in all stages.
+- `oven/bun:1.3-alpine` in all stages.
 - `output: 'standalone'` in Next config.
 - `bun install --frozen-lockfile --ignore-scripts` in the deps stage.
 - Do not change without updating this skill.
@@ -89,10 +90,10 @@ Format: decision · rationale · affected files · stability note.
 - `package.json` scripts wrap `biome lint`, `biome format`, `biome check --write`.
 - Do not change without updating this skill.
 
-## 13. Lefthook enforces Biome on staged files and Vitest on push
+## 13. Lefthook enforces Biome on staged files and Vitest + typecheck on push
 
-- Pre-commit: `bunx biome check --write --no-errors-on-unmatched {staged_files}` with `stage_fixed: true` (`lefthook.yml`).
-- Pre-push: `bun run test`.
+- Pre-commit: `bunx biome check --write --no-errors-on-unmatched {staged_files}` with `stage_fixed: true`, glob `*.{js,ts,jsx,tsx,json,jsonc,css}` (`lefthook.yml`).
+- Pre-push: `bun run test` AND `bun run typecheck`, run in parallel — both must pass.
 - `postinstall: lefthook install` (`package.json`) ensures hooks are set up.
 - Do not change without updating this skill.
 
@@ -112,6 +113,7 @@ Format: decision · rationale · affected files · stability note.
 ## 16. File storage is Cloudflare R2 via a Convex `'use node'` action, not Convex built-in storage
 
 - Upload/download go through presigned URLs minted by `convex/r2.ts`; client uploads direct to R2 via `lib/r2/upload.ts`.
+- Keys are caller-scoped to `uploads/<userId>/`; `convex/r2.ts` rejects any client-supplied key outside that prefix so an authed user can't sign a URL for another user's object.
 - Rationale: bucket shared with mobile, free R2 egress, no per-file size cap.
 - R2 credentials live in Convex env (`npx convex env set R2_*`), not `env.ts`.
 - Do not change without updating this skill.
@@ -126,5 +128,8 @@ Format: decision · rationale · affected files · stability note.
 ## 18. Product analytics is PostHog, one project ID across web + mobile
 
 - Provider in `lib/posthog/client.tsx`, server client in `lib/posthog/server.ts`, identify in `lib/posthog/identify.ts`, pageview in `app/PostHogPageView.tsx`.
+- `posthog.init` sets `capture_pageview: false` — pageviews are captured manually by `<PostHogPageView>`; auto-capture would double-count under the App Router.
+- `PostHogIdentityBridge` (`lib/posthog/identity-bridge.tsx`, wired in `components/convex-client-provider.tsx`) mirrors WorkOS auth into PostHog: `identify` on sign-in, `reset` on sign-out so the next anonymous session doesn't inherit the distinct ID.
+- Client and server read the validated `env` import (`@/env`), never `process.env`.
 - Same `NEXT_PUBLIC_POSTHOG_KEY` is used by mobile so analytics are unified per user.
 - Do not change without updating this skill.

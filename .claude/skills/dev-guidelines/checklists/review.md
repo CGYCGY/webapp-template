@@ -11,21 +11,23 @@ Use this when reviewing any PR in this codebase. Keywords below are the coding-s
 | YAGNI | No speculative options, props, or env vars. Code does only what the task needs. | — |
 | SoC | Proxy / layout / page / Convex handler each do one job. No DB reads in `proxy.ts`. No `withAuth` inside a Convex handler. | `proxy.ts`, `app/<route>/layout.tsx`, `convex/<domain>.ts` |
 | Boy Scout | Touched files end cleaner than before — naming, imports, dead code — but only within the diff's scope. | — |
-| Fail-Fast | Throw on invalid input *up front*, before any work. Identity guard + Zod `parse()` are the canonical example. | `reference/convex-patterns.md` |
+| Fail-Fast | Throw on invalid input *up front*, before any work. Identity guard + `parseOrThrow(schema, args)` are the canonical example. | `reference/convex-patterns.md` |
 | SOLID-DIP | Layers depend on abstractions, not concretions. The 4-layer model is layered DIP; client UI depends on the Convex API, not the DB row shape. | `docs/auth-layers.md` |
 | POLA | New code matches existing patterns. New webhook? Mirror `authKit.events()` in `convex/auth.ts`. New form? Mirror the shape in `reference/forms-and-validation.md`. | — |
 
 ## Authorization
 
 - [ ] Every new mutation has `getUserIdentity()` + early throw.
-- [ ] Every new mutation that takes user input has `<schema>.parse(args)`.
+- [ ] Every new mutation that takes user input has `parseOrThrow(schema, args)` (`convex/lib/validate.ts`).
+- [ ] User-meaningful / auth throws use `throw new ConvexError({ message })`, never `throw new Error(...)` (plain Error redacts to "Server Error" in prod).
+- [ ] `'use node'` actions resolve the caller via an `internalQuery` (`getByAuthIdInternal`), not a public query.
 - [ ] Every new authed page either has its own `layout.tsx` gate or is under one that already gates.
 - [ ] `fetchAuthedQuery` is used for Convex reads from Server Components — never `new ConvexHttpClient()` directly (`lib/convex-server.ts`).
 
 ## Schemas
 
 - [ ] New Zod schema lives in `convex/schemas/<feature>.ts`.
-- [ ] Same schema is consumed by both the form (resolver) and the mutation (`parse`).
+- [ ] Same schema is consumed by both the form (resolver) and the mutation (`parseOrThrow`).
 - [ ] Both `z.input` and `z.output` types are exported.
 
 ## Convex
@@ -34,6 +36,8 @@ Use this when reviewing any PR in this codebase. Keywords below are the coding-s
 - [ ] Indexes added to `convex/schema.ts` for any new query path.
 - [ ] Side effects (network calls) are in `action`, not `mutation`/`query`.
 - [ ] Webhook handlers verify signature before dispatching.
+- [ ] Client mutation/query catches surface `errorMessage(err)` (`@/convex/lib/errorMessage`), never raw `err.message`.
+- [ ] R2 / file-upload presigned keys are scoped to the caller (`uploads/<userId>/`); foreign keys rejected on both PUT and GET.
 
 ## Next.js 16
 
@@ -78,7 +82,9 @@ Use this when reviewing any PR in this codebase. Keywords below are the coding-s
 ## Red flags that should block review
 
 - A new mutation without identity guard.
-- A new mutation without Zod `parse`.
+- A new mutation without `parseOrThrow`.
+- A user-facing throw using `new Error(...)` instead of `new ConvexError({ message })`.
+- A presigned upload/download key not scoped to `uploads/<userId>/`.
 - `process.env.X` outside `env.ts`.
 - `client.query(...)` without `setAuth` for an authed Convex call.
 - New `middleware.ts` (it's `proxy.ts`).

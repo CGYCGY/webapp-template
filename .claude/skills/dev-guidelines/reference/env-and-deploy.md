@@ -18,7 +18,7 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_CONVEX_URL: z.string().min(1),
     NEXT_PUBLIC_WORKOS_CLIENT_ID: z.string().min(1),
-    NEXT_PUBLIC_WORKOS_REDIRECT_URI: z.string().url(),
+    NEXT_PUBLIC_WORKOS_REDIRECT_URI: z.url(),
   },
   runtimeEnv: { /* mirror every server+client key to process.env */ },
   emptyStringAsUndefined: true,
@@ -67,7 +67,7 @@ Rule: if **only** Convex reads a var, do NOT add it to `env.ts` — it noises up
 - **Stages**: `deps` (Bun frozen install) → `builder` (`bun run build`) → `runner` (Bun + alpine, non-root user).
 - **`NEXT_PUBLIC_*` vars must be `ARG`'d in the builder stage** so Next inlines them into the client bundle. Server-only vars are read at runtime by Coolify.
 - **`output: 'standalone'`** — runtime copies `.next/standalone`, `.next/static`, `public/` only.
-- **HEALTHCHECK** hits `/healthz` every 60s. `app/healthz/route.ts` returns `force-static` 200.
+- **HEALTHCHECK** wget-hits `http://127.0.0.1:3000/healthz` every 60s (loopback IP, not `localhost`). `app/healthz/route.ts` returns `force-static` 200.
 - **CMD**: `["bun", "server.js"]` — `bun` runs the standalone server. Don't change to `node` without testing.
 
 ## `deploy/deploy.sh`

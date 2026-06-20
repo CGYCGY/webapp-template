@@ -71,7 +71,7 @@ WorkOS's hosted-auth markup shifts between minor releases. Target stable selecto
 
 ## Pre-push hook
 
-Lefthook runs `bun run test` on `git push` (`lefthook.yml`). Vitest must pass before you can push. E2E runs are not in the hook — they require Convex dev + real credentials, both unreliable in pre-push.
+Lefthook runs `bun run test` AND `bun run typecheck` in parallel on `git push` (`lefthook.yml`). Both Vitest and `tsc --noEmit` must pass before you can push. E2E runs are not in the hook — they require Convex dev + real credentials, both unreliable in pre-push.
 
 ## When you add a feature
 

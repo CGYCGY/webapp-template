@@ -23,7 +23,7 @@ export type FeatureInput = z.input<typeof featureSchema>;
 export type FeatureValues = z.output<typeof featureSchema>;
 ```
 
-The same schema is imported by the client (RHF resolver) and by the Convex mutation (`parse`). One file, two consumers.
+The same schema is imported by the client (RHF resolver) and by the Convex mutation (`parseOrThrow`). One file, two consumers.
 
 ## 2. Convex table + index
 
@@ -45,12 +45,16 @@ The `authId` index makes `withIndex('authId', q => q.eq('authId', identity.subje
 `convex/<feature>.ts`:
 
 ```ts
+import { ConvexError, v } from 'convex/values';
+import { parseOrThrow } from './lib/validate';
+import { featureSchema } from './schemas/<feature>';
+
 export const create = mutation({
   args: v.object({ fieldA: v.string(), fieldB: v.optional(v.string()) }),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error('Not authenticated');
-    const parsed = featureSchema.parse(args);
+    if (!identity) throw new ConvexError({ message: 'Not authenticated' });
+    const parsed = parseOrThrow(featureSchema, args);
     const existing = await ctx.db
       .query('<feature>')
       .withIndex('authId', (q) => q.eq('authId', identity.subject))
@@ -68,7 +72,7 @@ export const create = mutation({
 });
 ```
 
-Order is non-negotiable: identity guard → Zod `parse` → indexed lookup → patch-or-insert. Never reach back into `args` after `parse`; only `parsed` is sanitized.
+Order is non-negotiable: identity guard → `parseOrThrow` → indexed lookup → patch-or-insert. All throws use `ConvexError` (never `new Error`) so the client's `errorMessage` can unwrap them — a bare `Error` reaches the client as an opaque string. Never reach back into `args` after parsing; only `parsed` is sanitized.
 
 ## 4. Patch mutation (edit after create)
 
@@ -77,13 +81,17 @@ export const update = mutation({
   args: v.object({ fieldA: v.string(), fieldB: v.optional(v.string()) }),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error('Not authenticated');
-    const parsed = featureSchema.parse(args);
+    if (!identity) throw new ConvexError({ message: 'Not authenticated' });
+    const parsed = parseOrThrow(featureSchema, args);
     const row = await ctx.db
       .query('<feature>')
       .withIndex('authId', (q) => q.eq('authId', identity.subject))
       .unique();
-    if (!row) throw new Error('Row not found — has the upstream sync fired?');
+    if (!row) {
+      throw new ConvexError({
+        message: 'Row not found — has the upstream sync fired?',
+      });
+    }
     await ctx.db.patch(row._id, { ...parsed, updatedAt: Date.now() });
     return row._id;
   },
@@ -123,26 +131,34 @@ export default async function FeatureLayout({ children }: { children: React.Reac
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from 'convex/react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { api } from '@/convex/_generated/api';
+import { errorMessage } from '@/convex/lib/errorMessage';
 import { type FeatureInput, featureSchema } from '@/convex/schemas/<feature>';
 
 export default function FeatureSetup() {
   const router = useRouter();
   const create = useMutation(api.<feature>.create);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const form = useForm<FeatureInput>({
     resolver: zodResolver(featureSchema),
     defaultValues: { fieldA: '', fieldB: '' },
   });
   const onSubmit = form.handleSubmit(async (values) => {
-    await create({ fieldA: values.fieldA, fieldB: values.fieldB ?? '' });
-    router.push('/<feature>');
+    setSubmitError(null);
+    try {
+      await create({ fieldA: values.fieldA, fieldB: values.fieldB ?? '' });
+      router.push('/<feature>');
+    } catch (err) {
+      setSubmitError(errorMessage(err));
+    }
   });
-  // ... <Form>{...}</Form>
+  // ... <Form>{...}</Form>, plus a top-level <p role="alert">{submitError}</p>
 }
 ```
 
-Same `featureSchema` as the Convex mutation. Client and server validate identically.
+Same `featureSchema` as the Convex mutation. Client and server validate identically. `errorMessage` unwraps the mutation's `ConvexError` message; never render `err.message` (opaque in prod).
 
 ## 7. Edit form (client, with `form.reset` on load)
 
@@ -183,7 +199,7 @@ The schema is the contract that both the client (RHF resolver) and the server (m
 
 1. `convex/schemas/<feature>.ts` — Zod schema and exported `Input` / `Values` types.
 2. `convex/schema.ts` — new table with `.index('authId', ['authId'])` (or your query path).
-3. `convex/<feature>.ts` — query + upsert mutation + patch mutation, each with identity guard + `parse()`.
+3. `convex/<feature>.ts` — query + upsert mutation + patch mutation, each with identity guard + `parseOrThrow`; all throws use `ConvexError`.
 4. `app/<feature>/layout.tsx` — gate (if the feature has its own URL space).
 5. `app/<feature>/setup/page.tsx` — create form.
 6. `app/<feature>/page.tsx` — read view; `app/<feature>/edit/page.tsx` — edit form.

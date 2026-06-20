@@ -7,7 +7,11 @@ Run through this before every commit. If a row doesn't apply to the change, skip
 - [ ] **Layer 1**: no change to `proxy.ts` unless deliberately altering session handling.
 - [ ] **Layer 2**: every new authed route segment has its own `layout.tsx` or extends an existing layout that gates with `withAuth` + `fetchAuthedQuery` (`lib/convex-server.ts`).
 - [ ] **Layer 4 (non-negotiable)**: every new mutation calls `ctx.auth.getUserIdentity()` and throws if absent.
-- [ ] **Layer 4 (non-negotiable)**: every mutation that accepts user input calls `<schema>.parse(args)` before any DB write.
+- [ ] **Layer 4 (non-negotiable)**: every mutation that accepts user input calls `parseOrThrow(schema, args)` (`convex/lib/validate.ts`) before any DB write.
+- [ ] User-meaningful / auth throws use `throw new ConvexError({ message })`, never `throw new Error(...)` (plain Error redacts to "Server Error" in prod).
+- [ ] Client mutation/query catches surface `errorMessage(err)` (`@/convex/lib/errorMessage`), never raw `err.message`.
+- [ ] `'use node'` actions resolve the caller via an `internalQuery` (`getByAuthIdInternal`), not a public query.
+- [ ] R2 / file-upload presigned keys scoped to the caller (`uploads/<userId>/`); foreign keys rejected on both PUT and GET.
 
 ## Forms & schemas
 
@@ -22,7 +26,7 @@ Run through this before every commit. If a row doesn't apply to the change, skip
 ## Convex
 
 - [ ] New table in `convex/schema.ts` has the index(es) it'll be queried by; no `.collect()` without an index.
-- [ ] Mutation uses `args: v.object({...})` for the Convex validator **plus** Zod `parse` for business rules.
+- [ ] Mutation uses `args: v.object({...})` for the Convex validator **plus** `parseOrThrow(schema, args)` for business rules.
 - [ ] Upsert vs patch: insert-or-patch for first-touch flows; patch-only (throws on missing row) for edits behind a gate — picked deliberately.
 - [ ] Side effects (email, third-party API) live in `action`, never in a mutation. Trigger via `ctx.scheduler.runAfter`.
 - [ ] New webhook receiver is an `httpAction` registered on `convex/http.ts`, mirroring `authKit.registerRoutes`.
@@ -73,4 +77,4 @@ Run through this before every commit. If a row doesn't apply to the change, skip
 - [ ] No emoji in source files.
 - [ ] No Co-Authored-By lines in commit messages.
 
-Lefthook enforces Biome pre-commit and Vitest pre-push (`lefthook.yml`). If a pre-commit hook fails, fix the issue and create a **new** commit — never amend the failed one.
+Lefthook enforces Biome pre-commit; pre-push runs `bun run typecheck` and Vitest in parallel (`lefthook.yml`). If a pre-commit hook fails, fix the issue and create a **new** commit — never amend the failed one.

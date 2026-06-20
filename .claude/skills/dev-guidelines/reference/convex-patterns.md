@@ -5,8 +5,9 @@
 Every mutation that takes user input follows this skeleton:
 
 ```ts
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { mutation } from './_generated/server';
+import { parseOrThrow } from './lib/validate';
 import { featureSchema } from './schemas/<feature>';
 
 export const doThing = mutation({
@@ -16,9 +17,9 @@ export const doThing = mutation({
   }),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error('Not authenticated');
+    if (!identity) throw new ConvexError({ message: 'Not authenticated' });
 
-    const parsed = featureSchema.parse(args);
+    const parsed = parseOrThrow(featureSchema, args);
 
     const existing = await ctx.db
       .query('<table>')
@@ -41,10 +42,18 @@ export const doThing = mutation({
 
 Two non-negotiables in every mutation that takes user input:
 
-1. `ctx.auth.getUserIdentity()` + early throw — Layer 4 identity check.
-2. `<schema>.parse(args)` — Zod re-validation. The Convex `v.object(...)` validator checks shape; Zod checks business rules (length, trim, regex, default).
+1. `ctx.auth.getUserIdentity()` + early `throw new ConvexError({ message })` — Layer 4 identity check. Never `throw new Error(...)` (see error contract below).
+2. `const parsed = parseOrThrow(featureSchema, args)` — Zod re-validation. The Convex `v.object(...)` validator checks shape; Zod checks business rules (length, trim, regex, default). NEVER `featureSchema.parse(args)` — that throws a raw `ZodError`, which Convex redacts to a generic "Server Error" in prod.
 
-After `parse`, never reach back into `args`. Only `parsed` is sanitized.
+After `parseOrThrow`, never reach back into `args`. Only `parsed` is sanitized.
+
+## Error contract: `parseOrThrow` → `ConvexError` → client `errorMessage()`
+
+Convex redacts a plain `throw new Error(...)` to "Server Error" in production. Only `ConvexError` payloads cross the wire to the client. So every thrown error a user should see — auth guards AND validation — must be a `ConvexError`.
+
+- **Validation:** `parseOrThrow(schema, args)` (`convex/lib/validate.ts`) throws `ConvexError({ kind: 'validation', field, message, issues })` where `field`/`message` are the first failing issue and `issues` is the full list.
+- **Guards / not-found:** `throw new ConvexError({ message: '...' })` — auth, missing rows, prefix checks.
+- **Client read:** `errorMessage(err)` (`convex/lib/errorMessage.ts`) detects `ConvexError` by `Symbol.for('ConvexError')` brand (not `instanceof` — client may resolve a different `convex` copy), returns `err.data.message`, else a generic fallback. Use it in `catch` blocks / form `onError`.
 
 ## Canonical query shape
 
@@ -88,13 +97,25 @@ defineTable({ /* fields */ }).index('authId', ['authId'])
 ```ts
 // convex/auth.ts
 export const { authKitEvent } = authKit.events({
-  'user.created': async (ctx, event) => { /* ctx.db.insert('users', {...}) */ },
+  'user.created': async (ctx, event) => {
+    // Idempotent: withIndex existence check + early return before insert.
+    // Pairs with users.bootstrapSelf (also idempotent) so webhook + JIT
+    // provisioning can't race into duplicate rows.
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('authId', (q) => q.eq('authId', event.data.id))
+      .unique();
+    if (existing) return;
+    await ctx.db.insert('users', { authId: event.data.id, /* email, name */ });
+  },
   'user.updated': async (ctx, event) => { /* withIndex lookup, then patch */ },
   'user.deleted': async (ctx, event) => { /* withIndex lookup, then delete */ },
 });
 ```
 
 The events run in a Convex mutation context — they have full `ctx.db` access but **no** `ctx.auth` (the webhook is server-to-server, not user-driven). Use the WorkOS event payload's `event.data.id` as the `authId`.
+
+`user.created` must be idempotent (existence check before insert) — the webhook fires out-of-band and `users.bootstrapSelf` may insert the same row first. See `examples/auth-bridge.md`.
 
 For a new provider's webhook (Paddle, Resend, etc.), mirror this shape. Register routes on the HTTP router via `convex/http.ts`.
 
@@ -143,30 +164,50 @@ This decouples the side effect from the mutation's transactional success.
 
 Use `'use node'` at the top of a Convex file when the action requires a Node runtime feature (file system, `@aws-sdk/*`, native Node modules). Without it, actions run in the V8 isolate — faster, but no Node API.
 
-Canonical example: `convex/r2.ts` — uses `@aws-sdk/client-s3` to mint presigned URLs.
+Canonical example: `convex/r2.ts` — uses `@aws-sdk/client-s3` to mint presigned URLs scoped to the caller.
 
 ```ts
 'use node';
 
-import { S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ConvexError, v } from 'convex/values';
+import { internal } from './_generated/api';
 import { action } from './_generated/server';
-import { v } from 'convex/values';
 
 export const generatePresignedPutUrl = action({
-  args: { contentType: v.string() },
-  handler: async (ctx, args) => {
+  args: { contentType: v.string(), key: v.optional(v.string()) },
+  handler: async (ctx, { contentType, key }): Promise<{ url: string; key: string }> => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error('Unauthorized');
-    // ... build S3Client, sign URL, return { url, key }
+    if (!identity) throw new ConvexError({ message: 'Not authenticated' });
+
+    // Resolve the caller's row via an internalQuery — node actions have no db.
+    // NEVER a public query (cross-user PII read).
+    const user = await ctx.runQuery(internal.users.getByAuthIdInternal, {
+      authId: identity.subject,
+    });
+    if (!user) throw new ConvexError({ message: 'User row not found' });
+
+    // Scope keys to uploads/<user._id>/ so a caller can't sign for another
+    // user's object. Reject any client-supplied key outside the prefix.
+    const expectedPrefix = `uploads/${user._id}/`;
+    if (key !== undefined && !key.startsWith(expectedPrefix)) {
+      throw new ConvexError({ message: 'Key must be under your uploads prefix' });
+    }
+    const objectKey = key ?? `${expectedPrefix}${crypto.randomUUID()}`;
+    // ... build S3Client, sign PutObjectCommand(Key: objectKey), return { url, key: objectKey }
   },
 });
 ```
 
+The GET path (`generatePresignedGetUrl`) takes a required `key` and enforces the SAME `uploads/<user._id>/` prefix check before signing — caller-scoping applies on both PUT and GET.
+
 Rules:
 
 - `'use node'` files can only export `action` and `httpAction`. Queries and mutations stay in V8-isolate files.
-- Auth-gate every action: `ctx.auth.getUserIdentity()` then throw if absent.
+- Auth-gate every action: `ctx.auth.getUserIdentity()` then `throw new ConvexError(...)` if absent.
+- Node actions have no `ctx.db` — resolve the caller's row with `ctx.runQuery(internal.users.getByAuthIdInternal, ...)` (an `internalQuery`), never a public query.
+- Scope every signed key to the caller's `uploads/<user._id>/` prefix and reject keys outside it, on both PUT and GET.
 - Read env via `process.env.R2_*` (Convex runtime). Do NOT add Convex-only env vars to `env.ts`.
 
 ## Diagnostic queries

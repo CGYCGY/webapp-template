@@ -9,7 +9,7 @@ Authoritative source: `docs/auth-layers.md`.
 | 1. Edge / proxy | Coarse "is there a session" on every request | `proxy.ts` | Unauthenticated user briefly sees an authed route. UX only. |
 | 2. Server route / layout | Per-route precondition (signed in, onboarded, org member) decided server-side | `app/<route>/layout.tsx` + `lib/convex-server.ts` (`fetchAuthedQuery`) | Flash of wrong content. UX only. |
 | 3. Reactive client state | Mid-session permission change reflected without reload | Diagnostic example only; not required | Stale UI. UX only. |
-| 4. Convex handler | `getUserIdentity()` + `parse()` inside every mutation / query | Every file in `convex/<domain>.ts` | **Data leak.** Non-negotiable. |
+| 4. Convex handler | `getUserIdentity()` + `parseOrThrow` inside every mutation / query | Every file in `convex/<domain>.ts` | **Data leak.** Non-negotiable. |
 
 Only Layer 4 protects data. Skipping any other layer is a UX bug; skipping Layer 4 is a security bug.
 
@@ -59,7 +59,7 @@ deploy/                 ← Dockerfile, deploy.sh, .env.deploy
 - `layout.tsx` decides "is this user allowed here." It can read DB rows via `fetchAuthedQuery`.
 - `page.tsx` (server) decides "what to render." Pure render.
 - Client components decide "how to interact." No data validation logic; defer to the Zod schema.
-- Convex handlers decide "is this operation valid for this user with these args." Always `getUserIdentity()` + `parse()` first.
+- Convex handlers decide "is this operation valid for this user with these args." Always `getUserIdentity()` + `parseOrThrow` first; throw `ConvexError`, never `new Error`.
 
 ## Error handling
 
@@ -73,15 +73,18 @@ Do NOT remove or replace `app/global-error.tsx`. Per-component class boundaries 
 
 ### Canonical class boundary
 
+A diagnostic boundary catches **every** throw under it, but the diagnostic only fits one failure mode. It MUST discriminate: regex-test the error for that mode, show the diagnostic only on a match, and fall back to a generic panel otherwise. Rendering the diagnostic for every throw (a bad query arg, a render bug) is misleading — this was a real bug. Canonical source: `app/dashboard/bridge-error-boundary.tsx`.
+
 ```tsx
 'use client';
 
 import { Component, type ReactNode } from 'react';
+import { errorMessage } from '@/convex/lib/errorMessage';
 
 interface Props { children: ReactNode; }
 interface State { error: Error | null; }
 
-export class FeatureErrorBoundary extends Component<Props, State> {
+export class BridgeErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { error: null };
@@ -92,12 +95,27 @@ export class FeatureErrorBoundary extends Component<Props, State> {
   }
 
   override render() {
-    if (this.state.error) {
+    const { error } = this.state;
+    if (error) {
+      const isBridgeError =
+        /not authenticated|no identity|unauthenticated|identity|auth/i.test(
+          `${error.name} ${error.message}`,
+        );
+      if (!isBridgeError) {
+        return (
+          <div role="alert" className="rounded border border-border p-4">
+            <p className="font-semibold">Something went wrong</p>
+            <p className="text-muted-foreground">Reload the page to try again.</p>
+          </div>
+        );
+      }
       return (
-        <div role="alert" className="rounded border border-destructive p-4">
-          <h3>Something is broken</h3>
-          <p>What to check: <code>convex/auth.config.ts</code> deployed, env keys match.</p>
-          <pre className="text-xs">{this.state.error.message}</pre>
+        <div role="alert" className="rounded border border-red-400 p-4">
+          <p className="font-semibold">WorkOS→Convex bridge is broken</p>
+          <p>Check <code>convex/auth.config.ts</code> is deployed and{' '}
+            <code>WORKOS_CLIENT_ID</code> (via <code>npx convex env set</code>)
+            matches <code>NEXT_PUBLIC_WORKOS_CLIENT_ID</code> in <code>.env.local</code>.</p>
+          <p className="font-mono text-xs">{errorMessage(error)}</p>
         </div>
       );
     }
@@ -106,11 +124,12 @@ export class FeatureErrorBoundary extends Component<Props, State> {
 }
 ```
 
-Three rules encoded:
+Four rules encoded:
 
 1. **`'use client'`** — boundaries are client-only.
 2. **`override render()`** — required by `noImplicitOverride: true` in `tsconfig.json`. Without the keyword, TypeScript errors.
 3. **`static getDerivedStateFromError`** — the React 19 way to catch synchronous render errors. Use `componentDidCatch` only if you also need a side effect (logging).
+4. **Discriminate before showing a diagnostic** — match the error shape (here, a regex on `${error.name} ${error.message}`); generic fallback otherwise. Display the message via `errorMessage(error)`, never raw `error.message`.
 
 ### When to add an error boundary
 
@@ -128,10 +147,12 @@ Three rules encoded:
 
 ### Diagnostic UX
 
-A good diagnostic boundary shows three things:
+On the matched failure mode, a good diagnostic boundary shows three things:
 
 1. A clear "something is broken" headline.
 2. The specific configuration to check (e.g. `WORKOS_CLIENT_ID` must match across env files).
-3. The raw error message in mono font for copy/paste into bug reports.
+3. The error message via `errorMessage(error)` in mono font for copy/paste into bug reports.
+
+For any other throw, fall back to the generic panel — no config hints, since they don't apply.
 
 Make the next person debug in 30 seconds, not 30 minutes.

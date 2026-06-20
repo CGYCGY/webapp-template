@@ -81,12 +81,22 @@ The `@convex-dev/workos-authkit` component supplies the issuer / JWKS config so 
 ### 6. Handler reads identity
 
 ```ts
+// convex/users.ts — whoami
 const identity = await ctx.auth.getUserIdentity();
-if (!identity) throw new Error('No Convex identity — JWT bridge is broken.');
+if (!identity) {
+  throw new ConvexError({
+    message:
+      process.env.NODE_ENV === 'production'
+        ? 'Not authenticated.'
+        : 'No Convex identity — JWT bridge is broken or user is not signed in.',
+  });
+}
 return { subject: identity.subject };
 ```
 
 `identity.subject` is the WorkOS `user_xxx` id. Use it as the join key for your `users` table.
+
+`whoami` returns `{ subject }` only — no `tokenIdentifier` or other internals. It throws `ConvexError` (plain `Error` is redacted to "Server Error" in prod, so the payload wouldn't reach the client). The verbose bridge-diagnostic string is gated behind `process.env.NODE_ENV !== 'production'` so prod clients never see internal diagnostics.
 
 ### Failure modes — JWT bridge
 
@@ -107,6 +117,14 @@ A `whoami`-style query that **intentionally throws** when there's no identity (w
 ```ts
 export const { authKitEvent } = authKit.events({
   'user.created': async (ctx, event) => {
+    // Idempotent: existence check + early return before insert. Pairs with
+    // users.bootstrapSelf so the webhook and the JIT path can't race into
+    // duplicate rows for a sign-up that originated against this deployment.
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('authId', (q) => q.eq('authId', event.data.id))
+      .unique();
+    if (existing) return;
     await ctx.db.insert('users', {
       authId: event.data.id,
       email: event.data.email,
@@ -119,6 +137,34 @@ export const { authKitEvent } = authKit.events({
 ```
 
 Runs in a Convex mutation context. **No `ctx.auth` here** — webhooks are server-to-server, not user-driven. Use `event.data.id` (the WorkOS user id) as `authId`.
+
+#### JIT fallback — `users.bootstrapSelf`
+
+The `user.created` webhook only fires for sign-ups originated against THIS deployment. A WorkOS account created via another app in the same org arrives with a valid JWT but **no Convex row** — and even for local sign-ups the webhook is out-of-band, so the first authed request may land before it. `bootstrapSelf` closes both gaps: an idempotent mutation, called once per sign-in from the client identity bridge, that provisions the row from `identity` when missing and returns the existing row otherwise.
+
+```ts
+// convex/users.ts — bootstrapSelf
+export const bootstrapSelf = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError({ message: 'Not authenticated' });
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('authId', (q) => q.eq('authId', identity.subject))
+      .unique();
+    if (existing) return existing;
+    const id = await ctx.db.insert('users', {
+      authId: identity.subject,
+      email: identity.email ?? '',
+      name: identity.name ?? '',
+    });
+    return await ctx.db.get(id);
+  },
+});
+```
+
+Idempotent existence check + the matching guard in `user.created` are a pair: whichever path runs first inserts, the other no-ops. Never duplicate rows.
 
 ### 2. Route registration
 
@@ -142,7 +188,7 @@ Point the webhook URL in the WorkOS dashboard at the Convex URL above. Set the s
 
 | Symptom | Likely cause |
 |---|---|
-| `getMe` returns `null` for a fresh user despite signed-in session | Webhook didn't fire — check WorkOS dashboard → Webhooks → recent deliveries |
+| `getMe` returns `null` for a fresh user despite signed-in session | Webhook didn't fire (or account came from another org app) — `bootstrapSelf` should JIT-provision on sign-in; if still null, check WorkOS dashboard → Webhooks → recent deliveries |
 | Webhook deliveries show 401 in WorkOS dashboard | `WORKOS_WEBHOOK_SECRET` mismatch between Convex env and WorkOS |
 | "User not found for update" warning | `user.updated` fired before `user.created` — race; resolves on retry |
 

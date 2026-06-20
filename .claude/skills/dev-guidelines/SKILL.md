@@ -31,19 +31,20 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 | Crash reporting | Sentry (`@sentry/nextjs`); init in `sentry.{client,server,edge}.config.ts` + `instrumentation.ts`; root boundary at `app/global-error.tsx` |
 | Analytics | PostHog (`posthog-js` + `posthog-node`); provider in `lib/posthog/client.tsx`; pageview in `app/PostHogPageView.tsx` |
 | Lint / format | Biome 2, single-quote JS, double-quote JSX, 2-space indent, organize imports on |
-| Git hooks | Lefthook (pre-commit Biome, pre-push Vitest) |
+| Git hooks | Lefthook (pre-commit Biome incl. `css`, pre-push Vitest + typecheck in parallel) |
 | Unit tests | Vitest + jsdom + Testing Library, `vite-tsconfig-paths` |
 | E2E | Playwright, `workers: 1`, `retain-on-failure` trace |
 | Task runner | `just` |
 | Deploy | Multi-stage Bun + Alpine → GHCR → Coolify webhook |
+| Errors | Backend `throw new ConvexError({ message })`; client unwraps via `errorMessage(err)` from `@/convex/lib/errorMessage` |
 | Path alias | `@/*` → repo root |
 
 ## Adding a feature — the workflow
 
 1. **Pick the layer.** Auth check / per-request rewrite → `proxy.ts`. Server-side gate before render → server `layout.tsx` (use `withAuth` + `fetchAuthedQuery`). UI → client component with `'use client'`. Data read / write → Convex query / mutation. Side-effects (email, third-party calls) → Convex `action`. Webhook receiver → Convex `httpAction` registered in `convex/http.ts`.
 2. **Define the Zod schema** in `convex/schemas/<feature>.ts`. Export both `z.input` (form values) and `z.output` (post-parse) types.
-3. **Convex side.** Use `args: v.object({...})` for the Convex arg validator, then inside the handler call `ctx.auth.getUserIdentity()` and `<schema>.parse(args)` before any DB write. Query rows via `.withIndex(...)`, never table scans.
-4. **Client side.** `useForm` + `zodResolver(schema)` for forms; `useMutation` / `useQuery` to call Convex. From Server Components, never `new ConvexHttpClient()` directly — call `fetchAuthedQuery` from `lib/convex-server.ts`.
+3. **Convex side.** Use `args: v.object({...})` for the Convex arg validator, then inside the handler call `ctx.auth.getUserIdentity()` and `parseOrThrow(schema, args)` (from `convex/lib/validate.ts`) before any DB write. Invalid input / authz failures `throw new ConvexError({ message })`. Query rows via `.withIndex(...)`, never table scans.
+4. **Client side.** `useForm` + `zodResolver(schema)` for forms; `useMutation` / `useQuery` to call Convex; surface backend errors with `errorMessage(err)`. From Server Components, never `new ConvexHttpClient()` directly — call `fetchAuthedQuery` (or `fetchAuthedMutation`) from `lib/convex-server.ts`.
 5. **Hydration-sensitive UI** (persisted Zustand, `next-themes`) must mount-gate with `useState(false) + useEffect(() => setMounted(true))`. See `reference/nextjs-16.md` → Hydration mismatch checklist.
 6. **Layouts and `route.ts` stay server-side.** No `'use client'` in them.
 
@@ -53,7 +54,9 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 |---|---|
 | Where do queries / mutations go? | `convex/<domain>.ts` |
 | Where do schemas live? | `convex/schemas/<feature>.ts` |
-| How do I run a Convex query as the user from a Server Component? | `fetchAuthedQuery` from `lib/convex-server.ts` |
+| How do I run a Convex query/mutation as the user from a Server Component? | `fetchAuthedQuery` / `fetchAuthedMutation` from `lib/convex-server.ts` |
+| How do I show a backend error message client-side? | `errorMessage(err)` from `@/convex/lib/errorMessage` |
+| SSR-safe media query? | `useMediaQuery(query)` from `lib/use-media-query.ts` (mount-guarded) |
 | How do I add a webhook receiver? | `httpAction` in `convex/<provider>.ts`, register on the router in `convex/http.ts` |
 | Server action vs Convex mutation? | Server action: needs `next/headers`, cookies, or WorkOS server SDK (e.g. `signOut`). Everything else: Convex mutation. |
 | Path alias for imports? | `@/*` → repo root |
@@ -70,7 +73,7 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 | `just env-sync` | Push `WORKOS_*` vars from `.env.local` to Convex |
 | `just deploy [tag]` | `deploy/deploy.sh`: build image → push GHCR → Coolify webhook |
 
-Run `just check && just typecheck && just test` before every commit. Lefthook enforces lint pre-commit and Vitest pre-push.
+Run `just check && just typecheck && just test` before every commit. Lefthook enforces Biome pre-commit and Vitest + typecheck (parallel) pre-push.
 
 ## Coding standards
 
@@ -104,4 +107,4 @@ No comments unless they document a non-obvious *why*. No JSDoc. No commented-out
 | `checklists/validation.md` | Pre-commit checklist for any change |
 | `checklists/review.md` | Code review checklist |
 | `checklists/integration-add.md` | Adding Resend, Paddle, pino, Vercel AI, or any other deferred integration |
-| `decisions.md` | The 15 standing decisions this skill encodes — change only with explicit justification |
+| `decisions.md` | The 18 standing decisions this skill encodes — change only with explicit justification |

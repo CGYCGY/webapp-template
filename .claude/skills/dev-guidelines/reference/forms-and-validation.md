@@ -32,6 +32,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { api } from '@/convex/_generated/api';
+import { errorMessage } from '@/convex/lib/errorMessage';
 import { type FeatureInput, featureSchema } from '@/convex/schemas/<feature>';
 
 export function FeatureForm() {
@@ -48,7 +49,7 @@ export function FeatureForm() {
     try {
       await doThing({ fieldA: values.fieldA, fieldB: values.fieldB ?? '' });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to save.');
+      setSubmitError(errorMessage(err));
     }
   });
 
@@ -81,7 +82,7 @@ export function FeatureForm() {
 Two error channels:
 
 - **Field errors** — `<FormMessage />` inside each `<FormItem>`, wired by `useFormField` inside `components/ui/form.tsx`.
-- **Submit errors** — top-level `<p role="alert">` with destructive styling, near the submit button.
+- **Submit errors** — top-level `<p role="alert">` with destructive styling, near the submit button. Always `setSubmitError(errorMessage(err))` from `@/convex/lib/errorMessage` — never render `err.message`. A raw `ConvexError.data.message` is only readable when thrown intentionally; an uncaught throw reaches the client as a redacted/opaque string in prod. `errorMessage` brand-checks the ConvexError (via `Symbol.for('ConvexError')`, so a duplicate `convex` copy still matches), unwraps `data.message`, and falls back to a generic line.
 
 ## Editing-flow pattern
 
@@ -97,15 +98,19 @@ Guard against `row === undefined` (loading) and `row === null` (signed out / not
 
 ## Server-side re-validation
 
-Convex mutations MUST re-parse with the same Zod schema:
+Convex mutations MUST re-parse with the same Zod schema via `parseOrThrow` (`convex/lib/validate.ts`), never `schema.parse()`:
 
 ```ts
-const parsed = featureSchema.parse(args);
+import { parseOrThrow } from './lib/validate';
+
+const parsed = parseOrThrow(featureSchema, args);
 ```
 
-`v.object({...})` is the Convex arg validator — it enforces shape and types but not business rules. Zod's `.parse()` enforces `min`, `max`, `trim`, regex, `.default()`, etc. Both are needed.
+`parseOrThrow` does a `safeParse` and on failure throws `ConvexError({ kind: 'validation', field, message, issues })` — a structured error the client's `errorMessage` can unwrap. A bare `schema.parse()` throws a `ZodError` that surfaces as an opaque string on the client. User-facing/auth failures throw `new ConvexError({ message })`, never `new Error()`.
 
-A client that bypasses the form can hit the mutation directly through the browser console — see `docs/auth-layers.md`. Server-side `parse()` is the only protection.
+`v.object({...})` is the Convex arg validator — it enforces shape and types but not business rules. `parseOrThrow` enforces `min`, `max`, `trim`, regex, `.default()`, etc. Both are needed.
+
+A client that bypasses the form can hit the mutation directly through the browser console — see `docs/auth-layers.md`. Server-side validation is the only protection.
 
 ## shadcn `Form` primitives
 

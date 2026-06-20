@@ -8,7 +8,6 @@
 - **CVA** (`class-variance-authority`) for component variants.
 - **`cn()`** from `lib/utils.ts` merges classes — always last for caller overrides.
 - **Lucide React** for icons, sized `size-4` by default.
-- **Motion** (`motion` package) for animations.
 
 ## Canonical CVA primitive
 
