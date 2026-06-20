@@ -3,13 +3,13 @@
 # Produces a minimal runtime image from `output: 'standalone'`.
 
 # ---- deps ----
-FROM oven/bun:1.2-alpine AS deps
+FROM oven/bun:1.3-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts
 
 # ---- builder ----
-FROM oven/bun:1.2-alpine AS builder
+FROM oven/bun:1.3-alpine AS builder
 WORKDIR /app
 
 # NEXT_PUBLIC_* must be present at build time so Next can inline them
@@ -31,7 +31,7 @@ COPY . .
 RUN bun run build
 
 # ---- runner ----
-FROM oven/bun:1.2-alpine AS runner
+FROM oven/bun:1.3-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -51,6 +51,6 @@ USER nextjs
 EXPOSE 3000
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/healthz >/dev/null 2>&1 || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/healthz >/dev/null 2>&1 || exit 1
 
 CMD ["bun", "server.js"]
