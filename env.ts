@@ -16,7 +16,7 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_CONVEX_URL: z.string().min(1),
     NEXT_PUBLIC_WORKOS_CLIENT_ID: z.string().min(1),
-    NEXT_PUBLIC_WORKOS_REDIRECT_URI: z.string().url(),
+    NEXT_PUBLIC_WORKOS_REDIRECT_URI: z.url(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1),
     NEXT_PUBLIC_POSTHOG_HOST: z.url().default('https://us.i.posthog.com'),
     NEXT_PUBLIC_SENTRY_DSN: z.url().optional(),
