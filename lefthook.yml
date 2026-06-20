@@ -7,6 +7,9 @@ pre-commit:
       stage_fixed: true
 
 pre-push:
+  parallel: true
   commands:
     vitest:
       run: bun run test
+    typecheck:
+      run: bun run typecheck
