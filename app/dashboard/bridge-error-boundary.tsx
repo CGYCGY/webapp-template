@@ -22,7 +22,27 @@ export class BridgeErrorBoundary extends Component<Props, State> {
   }
 
   override render() {
-    if (this.state.error) {
+    const { error } = this.state;
+    if (error) {
+      // The diagnostic only fits auth-bridge failures; any other throw (a bad
+      // query arg, a render bug) lands here too and must get a generic message.
+      const isBridgeError =
+        /not authenticated|no identity|unauthenticated|identity|auth/i.test(
+          `${error.name} ${error.message}`,
+        );
+      if (!isBridgeError) {
+        return (
+          <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-24">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <div className="max-w-md rounded border border-border bg-card p-4 text-sm">
+              <p className="font-semibold">Something went wrong</p>
+              <p className="mt-1 text-muted-foreground">
+                Reload the page to try again.
+              </p>
+            </div>
+          </main>
+        );
+      }
       return (
         <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-24">
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -39,7 +59,7 @@ export class BridgeErrorBoundary extends Component<Props, State> {
               <code>.env.local</code>.
             </p>
             <p className="mt-2 font-mono text-xs text-red-600 dark:text-red-400">
-              {errorMessage(this.state.error)}
+              {errorMessage(error)}
             </p>
           </div>
         </main>
