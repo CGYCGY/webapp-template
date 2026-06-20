@@ -28,8 +28,9 @@ For each entry, this doc lists **when** to install, **what** env vars are needed
 - **Where the code lives:**
   - `lib/posthog/client.tsx` — `'use client'` `<PostHogProvider>`, init in `useEffect`, pageview capture configured.
   - `lib/posthog/server.ts` — `posthog-node` singleton via `getPostHogServer()`. Caller must `await client.shutdown()` in long-lived Node contexts.
-  - `lib/posthog/identify.ts` — `identifyUserOnSignIn(user)` and `resetPostHogOnSignOut()` helpers; call from WorkOS callback or a client-side auth hook.
-  - `app/PostHogPageView.tsx` — App Router pathname/searchParams listener, captures `$pageview`.
+  - `lib/posthog/identify.ts` — `identifyUserOnSignIn(user)` and `resetPostHogOnSignOut()` helpers.
+  - `lib/posthog/identity-bridge.tsx` — shipped `<PostHogIdentityBridge />` (mounted in `components/convex-client-provider.tsx`); watches `useAuth()` and fires identify/reset on the sign-in/sign-out transitions, plus self-provisions the Convex user row via `api.users.bootstrapSelf`.
+  - `app/PostHogPageView.tsx` — App Router pathname/searchParams listener, captures `$pageview` (the sole pageview source; init sets `capture_pageview: false`).
   - `app/layout.tsx` — wrapped in `<PostHogProvider>`.
 - **Pattern:** call `posthog.capture('event_name', { props })` from any client component; server-side `getPostHogServer().capture(...)` for server actions / route handlers. Identify on sign-in to enable cross-device user tracking. See `docs/posthog.md`.
 
@@ -39,7 +40,7 @@ For each entry, this doc lists **when** to install, **what** env vars are needed
 - **Install:** already in deps (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`).
 - **Env vars:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (required), `R2_PUBLIC_BASE_URL` (optional). Set via `npx convex env set` — these live in **Convex runtime**, NOT in `env.ts` (Next.js app never sees them).
 - **Where the code lives:**
-  - `convex/r2.ts` — `'use node'` action exports `generatePresignedPutUrl` (5min) and `generatePresignedGetUrl` (1h). Auth-gated via `ctx.auth.getUserIdentity()`. Keys default to `uploads/<authSubject>/<uuid>`.
+  - `convex/r2.ts` — `'use node'` action exports `generatePresignedPutUrl` (5min) and `generatePresignedGetUrl` (1h). Auth-gated via `ctx.auth.getUserIdentity()`, then keys are scoped to the caller's `uploads/<convex userId>/` prefix (client-supplied keys outside it are rejected) — see `docs/r2.md` "Key scoping".
   - `lib/r2/upload.ts` — `useR2Upload()` hook. Returns async `({ file, contentType?, key? }) => { key, etag? }`. Uses `useAction` + browser `fetch` PUT.
   - `lib/r2/download.ts` — `useR2Url()` hook. Async `(key) => url`.
 - **Pattern:** client calls `useR2Upload()` hook → Convex action mints presigned PUT URL → browser PUTs file directly to R2 → client stores returned key in Convex via a separate mutation. Bucket CORS must allow PUT/GET from app origins; see `docs/r2.md`.

@@ -9,7 +9,7 @@ A layer is "feel broken" when its failure produces a bad UX but no data leak: an
 | 1. Edge / proxy | Coarse "is there a session" check on every request | `proxy.ts` (WorkOS `authkitProxy`) | Unauthenticated users hit authed routes; full page render before client realizes it |
 | 2. Server route / layout | Per-route precondition (e.g. onboarded, has org) decided server-side | `app/dashboard/layout.tsx` (`fetchAuthedQuery` + `redirect`) | Flash of wrong content; "check on every page" maintenance burden |
 | 3. Reactive client state | Mid-session permission changes reflected without reload | **Not enforced in this template** (see below) | Stale UI after subscription cancel / role downgrade in another tab |
-| 4. Convex handler | Identity + input validation inside every mutation/query | `convex/users.ts` (`ctx.auth.getUserIdentity()` + `profileFormSchema.parse`) | Data loss or unauthorized writes; the only layer that actually protects data |
+| 4. Convex handler | Identity + input validation inside every mutation/query | `convex/users.ts` (`ctx.auth.getUserIdentity()` + `parseOrThrow(profileFormSchema, …)`) | Data loss or unauthorized writes; the only layer that actually protects data |
 
 ## Layer 1 — Edge / proxy
 
@@ -53,25 +53,28 @@ Every mutation and query in `convex/users.ts` starts with:
 
 ```ts
 const identity = await ctx.auth.getUserIdentity();
-if (!identity) throw new Error('Not authenticated');
+if (!identity) throw new ConvexError({ message: 'Not authenticated' });
 ```
+
+`ConvexError` (not a bare `Error`) is deliberate: only `ConvexError.data` survives the wire to the client. A thrown `Error` arrives at the browser as a redacted "Server Error" in production, so its message can't be shown. The client reads `ConvexError.data.message` via `errorMessage()` (`convex/lib/errorMessage.ts`).
 
 For mutations that accept user input, the next line is:
 
 ```ts
-const parsed = profileFormSchema.parse(args);
+const parsed = parseOrThrow(profileFormSchema, args);
 ```
 
-`profileFormSchema` is the same Zod schema the React Hook Form `zodResolver` uses on the client (`convex/schemas/profile.ts`). Re-running `parse` server-side is what makes it safe to trust the validated shape further down the handler.
+`profileFormSchema` is the same Zod schema the React Hook Form `zodResolver` uses on the client (`convex/schemas/profile.ts`). `parseOrThrow` (`convex/lib/validate.ts`) runs `safeParse` and, on failure, throws a `ConvexError({ kind: 'validation', field, message, issues })` instead of letting a raw `ZodError` escape — so the same client-readable contract applies to validation failures. Re-running validation server-side is what makes it safe to trust the validated shape further down the handler.
 
-Two mutation shapes worth remembering:
+Three mutation shapes worth remembering:
 
+- `bootstrapSelf` is **JIT provisioning**: idempotent insert of the caller's own `users` row from their JWT identity, returning the existing row if present. The client identity bridge (`lib/posthog/identity-bridge.tsx`) calls it once per sign-in so a WorkOS account created against another app in the same org — which arrives with a valid JWT but no Convex row, because the `user.created` webhook never fired here — can still write. It's paired with the (also idempotent) webhook handler in `convex/auth.ts` so the two can't race into duplicate rows.
 - `completeOnboarding` is an **upsert**: inserts a `users` row if none exists, patches it if one does. Use it from `/onboarding`.
 - `updateProfile` is a **patch-only**: throws "User row not found" if the row is missing. Use it from `/dashboard/settings`, which is gated by Layer 2 and so always runs after the row exists.
 
-This is the **only** layer that protects data. A client-side `disabled` attribute, a hidden button, a Layer-3 reactive redirect — none of them stop a determined caller from opening DevTools and invoking the mutation directly. To prove it: open React DevTools on `/dashboard/settings`, select the settings component, find the `useMutation(api.users.updateProfile)` return value in the hook list, "Store as global variable," then in the console call `await $reactTemp1({ displayName: '', bio: '' })`. The promise rejects with a `ZodError` thrown from `profileFormSchema.parse` inside the handler — the client form is fully bypassed and the server still rejects.
+This is the **only** layer that protects data. A client-side `disabled` attribute, a hidden button, a Layer-3 reactive redirect — none of them stop a determined caller from opening DevTools and invoking the mutation directly. To prove it: open React DevTools on `/dashboard/settings`, select the settings component, find the `useMutation(api.users.updateProfile)` return value in the hook list, "Store as global variable," then in the console call `await $reactTemp1({ displayName: '', bio: '' })`. The promise rejects with a `ConvexError` carrying `data.kind === 'validation'` (thrown by `parseOrThrow` inside the handler) — the client form is fully bypassed and the server still rejects.
 
-Failure mode: a handler without `getUserIdentity()` or without `parse()` is a data leak waiting for someone with the browser console open.
+Failure mode: a handler without `getUserIdentity()` or without `parseOrThrow()` is a data leak waiting for someone with the browser console open.
 
 ## What gets shipped in this template
 
@@ -79,7 +82,7 @@ Failure mode: a handler without `getUserIdentity()` or without `parse()` is a da
 |---|---|
 | 1 | `proxy.ts` |
 | 2 | `app/dashboard/layout.tsx` (and `lib/convex-server.ts:fetchAuthedQuery`) |
-| 3 | Not enforced. Diagnostic-only example in `app/dashboard/dashboard-client.tsx` (yellow box reacts to `getMe`) and `app/dashboard/bridge-error-boundary.tsx` (red box catches `whoami` throws). |
-| 4 | `convex/users.ts` — `whoami`, `getMe`, `getByAuthId`, `completeOnboarding`, `updateProfile`. The two mutations both call `getUserIdentity()` and `profileFormSchema.parse()`. |
+| 3 | Not enforced. Diagnostic-only example in `app/dashboard/dashboard-client.tsx` (yellow box reacts to `getMe`) and `app/dashboard/bridge-error-boundary.tsx` (red box catches `whoami` throws). The boundary discriminates: only auth-shaped errors get the bridge diagnostic; any other throw (bad query arg, render bug) falls through to a generic "Something went wrong" card. |
+| 4 | `convex/users.ts` — `whoami`, `getMe`, `getByAuthIdInternal` (internalQuery; not client-callable), `bootstrapSelf`, `completeOnboarding`, `updateProfile`. The input-accepting mutations (`completeOnboarding`, `updateProfile`) both call `getUserIdentity()` and `parseOrThrow(profileFormSchema, …)`. |
 
 When you add a new authed feature, the discipline is: Layer 1 is already covered; pick the right layout for Layer 2; decide whether Layer 3 is worth the wiring; and **never skip Layer 4**.

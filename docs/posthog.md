@@ -44,7 +44,7 @@ export default function RootLayout({ children }) {
 }
 ```
 
-`<PostHogProvider>` is a `"use client"` component. It initializes `posthog-js` inside a `useEffect`, so init runs only in the browser (never during SSR). The provider mounts `<PostHogPageView />` internally, which captures `$pageview` on every App Router navigation by watching `usePathname()` + `useSearchParams()`. The init call also sets `capture_pageview: 'history_change'` as a defence-in-depth fallback for `history.pushState`-driven changes that bypass the App Router.
+`<PostHogProvider>` is a `"use client"` component. It initializes `posthog-js` inside a `useEffect`, so init runs only in the browser (never during SSR). The provider mounts `<PostHogPageView />` internally, which captures `$pageview` on every App Router navigation by watching `usePathname()` + `useSearchParams()`. The init call sets `capture_pageview: false` so `<PostHogPageView />` is the **single** source of pageviews — leaving PostHog's built-in `'history_change'` capture on would double-count every App Router navigation (the SDK fires on `history.pushState` *and* the provider fires on the resulting path change).
 
 Init config:
 
@@ -73,35 +73,14 @@ Event naming convention: `noun_verb` snake_case (`profile_saved`, `message_sent`
 
 ## 5. Identify users on sign-in
 
-PostHog tracks anonymous users by default. The WorkOS sign-in flow ends at `app/auth/callback/route.ts` (which delegates to `handleAuth()` from `@workos-inc/authkit-nextjs`). The route is a server handler, so the call to `identifyUserOnSignIn` happens **client-side** — wire it into a client component that observes `useAuth()` from `@workos-inc/authkit-nextjs/components` and fires the first time `user` transitions from `null` to a value:
+PostHog tracks anonymous users by default. The template already ships this wiring — you don't write it. `lib/posthog/identity-bridge.tsx` exports `<PostHogIdentityBridge />`, mounted inside `ConvexProviderWithAuth` in `components/convex-client-provider.tsx`. It observes `useAuth()` from `@workos-inc/authkit-nextjs/components` and:
 
-```tsx
-'use client';
-import { useAuth } from '@workos-inc/authkit-nextjs/components';
-import { useEffect, useRef } from 'react';
-import { identifyUserOnSignIn } from '@/lib/posthog';
+- **On sign-in** (first time `user.id` is seen): calls `identifyUserOnSignIn(...)`, stitching the anonymous pre-signup session to the identified user so the anonymous→signed-up funnel stays intact. A `useRef` keyed by `user.id` guards against re-firing on every render.
+- **On sign-out** (`user` goes back to `null`): calls `resetPostHogOnSignOut()` so the next anonymous session doesn't inherit the previous user's distinct ID.
 
-export function PostHogIdentify() {
-  const { user } = useAuth();
-  const identified = useRef(false);
+The same component also self-provisions the Convex user row (`api.users.bootstrapSelf`) once per sign-in — see `docs/auth-layers.md` for why that JIT provisioning exists. It's colocated here because both jobs key off the same `useAuth()` sign-in transition. The bridge must render inside both `AuthKitProvider` (for `useAuth()`) and `ConvexProviderWithAuth` (for `useMutation`).
 
-  useEffect(() => {
-    if (!user || identified.current) return;
-    identifyUserOnSignIn({
-      id: user.id,
-      email: user.email,
-      name: [user.firstName, user.lastName].filter(Boolean).join(' '),
-    });
-    identified.current = true;
-  }, [user]);
-
-  return null;
-}
-```
-
-This stitches the anonymous pre-signup session to the identified user — the funnel from anonymous to signed-up stays intact.
-
-On sign-out, call `resetPostHogOnSignOut()` (re-exported from `@/lib/posthog`) so the next anonymous session does not inherit the previous user's distinct ID.
+`identifyUserOnSignIn` and `resetPostHogOnSignOut` live in `lib/posthog/identify.ts` and are re-exported from `@/lib/posthog` if you need to call them from your own flow.
 
 ## 6. Server-side capture
 

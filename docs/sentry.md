@@ -93,7 +93,6 @@ Set in `next.config.ts`:
 | `silent` | `!process.env.CI` | Quiet during local builds, verbose in CI. |
 | `widenClientFileUpload` | `true` | Upload sourcemaps for all client chunks, not just `_next/static`. |
 | `tunnelRoute` | `'/monitoring'` | Route Sentry traffic through a same-origin endpoint to evade adblockers. |
-| `hideSourceMaps` | `true` | Strip the `//# sourceMappingURL` comment from shipped JS so sourcemaps aren't fetched by browsers. |
 | `disableLogger` | `true` | Tree-shake Sentry's internal logger out of the client bundle. |
 | `automaticVercelMonitors` | `false` | Don't auto-create Vercel cron monitors — this template doesn't deploy to Vercel. |
 
