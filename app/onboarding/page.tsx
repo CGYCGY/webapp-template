@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
+import { errorMessage } from '@/convex/lib/errorMessage';
 import {
   type ProfileFormInput,
   profileFormSchema,
@@ -41,9 +42,7 @@ export default function OnboardingPage() {
       });
       router.push('/dashboard');
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'Failed to save profile.',
-      );
+      setSubmitError(errorMessage(err));
     }
   });
 

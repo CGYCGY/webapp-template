@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node';
+import { env } from '@/env';
 
 let client: PostHog | null = null;
 
@@ -12,7 +13,7 @@ let client: PostHog | null = null;
 export function getPostHogServer(): PostHog {
   if (client) return client;
 
-  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const key = env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!key) {
     throw new Error(
       'NEXT_PUBLIC_POSTHOG_KEY is not set — cannot construct server-side PostHog client',
@@ -20,7 +21,7 @@ export function getPostHogServer(): PostHog {
   }
 
   client = new PostHog(key, {
-    host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
+    host: env.NEXT_PUBLIC_POSTHOG_HOST,
     flushAt: 1,
     flushInterval: 0,
   });

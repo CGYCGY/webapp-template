@@ -1,6 +1,7 @@
 'use client';
 
 import { Component, type ReactNode } from 'react';
+import { errorMessage } from '@/convex/lib/errorMessage';
 
 interface Props {
   children: ReactNode;
@@ -38,7 +39,7 @@ export class BridgeErrorBoundary extends Component<Props, State> {
               <code>.env.local</code>.
             </p>
             <p className="mt-2 font-mono text-xs text-red-600 dark:text-red-400">
-              {this.state.error.message}
+              {errorMessage(this.state.error)}
             </p>
           </div>
         </main>

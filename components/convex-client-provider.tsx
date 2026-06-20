@@ -8,6 +8,7 @@ import {
 import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
 import { type ReactNode, useCallback, useState } from 'react';
 import { env } from '@/env';
+import { PostHogIdentityBridge } from '@/lib/posthog/identity-bridge';
 
 function useAuthFromAuthKit() {
   const { user, loading: isLoading } = useAuth();
@@ -41,6 +42,8 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
     <AuthKitProvider>
       <ConvexProviderWithAuth client={convex} useAuth={useAuthFromAuthKit}>
+        {/* Inside Convex provider: the bridge bootstraps via useMutation. */}
+        <PostHogIdentityBridge />
         {children}
       </ConvexProviderWithAuth>
     </AuthKitProvider>
