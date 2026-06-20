@@ -1,5 +1,7 @@
 'use node';
 
+declare const process: { env: Record<string, string | undefined> };
+
 // Cloudflare R2 presigned URL actions.
 //
 // Required env vars (set with `npx convex env set <NAME> <VALUE>`):
@@ -14,7 +16,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
+import { internal } from './_generated/api';
 import { action } from './_generated/server';
 
 const client = new S3Client({
@@ -31,14 +34,28 @@ export const generatePresignedPutUrl = action({
     contentType: v.string(),
     key: v.optional(v.string()),
   },
-  handler: async (ctx, { contentType, key }) => {
+  handler: async (
+    ctx,
+    { contentType, key },
+  ): Promise<{ url: string; key: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error('Not authenticated');
+      throw new ConvexError({ message: 'Not authenticated' });
     }
 
-    const objectKey =
-      key ?? `uploads/${identity.subject}/${crypto.randomUUID()}`;
+    // Scope objects to the caller's Convex userId so an authed user can't sign
+    // a URL for another user's key. Reject any client-supplied key outside it.
+    const user = await ctx.runQuery(internal.users.getByAuthIdInternal, {
+      authId: identity.subject,
+    });
+    if (!user) throw new ConvexError({ message: 'User row not found' });
+    const expectedPrefix = `uploads/${user._id}/`;
+    if (key !== undefined && !key.startsWith(expectedPrefix)) {
+      throw new ConvexError({
+        message: 'Key must be under your uploads prefix',
+      });
+    }
+    const objectKey = key ?? `${expectedPrefix}${crypto.randomUUID()}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET,
@@ -55,10 +72,20 @@ export const generatePresignedGetUrl = action({
   args: {
     key: v.string(),
   },
-  handler: async (ctx, { key }) => {
+  handler: async (ctx, { key }): Promise<{ url: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error('Not authenticated');
+      throw new ConvexError({ message: 'Not authenticated' });
+    }
+
+    const user = await ctx.runQuery(internal.users.getByAuthIdInternal, {
+      authId: identity.subject,
+    });
+    if (!user) throw new ConvexError({ message: 'User row not found' });
+    if (!key.startsWith(`uploads/${user._id}/`)) {
+      throw new ConvexError({
+        message: 'Key must be under your uploads prefix',
+      });
     }
 
     const command = new GetObjectCommand({

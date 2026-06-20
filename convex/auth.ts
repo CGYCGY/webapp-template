@@ -12,6 +12,14 @@ export { authKit };
 
 export const { authKitEvent } = authKit.events({
   'user.created': async (ctx, event) => {
+    // Idempotent — paired with users.bootstrapSelf, which inserts on the first
+    // authenticated request. Without this check the webhook + bootstrapSelf race
+    // could produce duplicate rows for sign-ups that originated here.
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('authId', (q) => q.eq('authId', event.data.id))
+      .unique();
+    if (existing) return;
     await ctx.db.insert('users', {
       authId: event.data.id,
       email: event.data.email,

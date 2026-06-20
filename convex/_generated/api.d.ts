@@ -15,12 +15,18 @@ import type {
 } from 'convex/server';
 import type * as auth from '../auth.js';
 import type * as http from '../http.js';
+import type * as lib_errorMessage from '../lib/errorMessage.js';
+import type * as lib_validate from '../lib/validate.js';
+import type * as r2 from '../r2.js';
 import type * as schemas_profile from '../schemas/profile.js';
 import type * as users from '../users.js';
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  'lib/errorMessage': typeof lib_errorMessage;
+  'lib/validate': typeof lib_validate;
+  r2: typeof r2;
   'schemas/profile': typeof schemas_profile;
   users: typeof users;
 }>;
