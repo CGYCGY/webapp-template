@@ -52,7 +52,7 @@ Run through this before every commit. If a row doesn't apply to the change, skip
 - [ ] New env var added to `env.ts` under the correct block (server vs client — secrets never in client).
 - [ ] New env var added to `runtimeEnv` mapping in `env.ts`.
 - [ ] New env var added to `.env.local` and `.env.local.example`.
-- [ ] If used by Convex: `just env-sync` run (and prefix added to `SYNC_PREFIXES` if not `WORKOS_`).
+- [ ] If used by Convex: `just convex-env-sync` run (and prefix added to `SYNC_PREFIXES` if not `WORKOS_`).
 - [ ] If used at build time and `NEXT_PUBLIC_*`: `ARG`/`ENV` lines added to `deploy/Dockerfile`.
 
 ## Tests

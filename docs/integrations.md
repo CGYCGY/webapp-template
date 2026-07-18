@@ -59,7 +59,7 @@ For each entry, this doc lists **when** to install, **what** env vars are needed
 bun add resend
 ```
 
-**Env vars** (add to both `env.ts` and `.env.local`, then `just env-sync` so Convex sees them):
+**Env vars** (add to both `env.ts` and `.env.local`, then `just convex-env-sync` so Convex sees them):
 
 ```ts
 // env.ts → server block
@@ -113,7 +113,7 @@ NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().min(1),
 NEXT_PUBLIC_PADDLE_ENVIRONMENT: z.enum(['sandbox', 'production']),
 ```
 
-Run `just env-sync` to push the server vars to Convex (the webhook handler needs them).
+Run `just convex-env-sync` to push the server vars to Convex (the webhook handler needs them).
 
 **Where the code lives:**
 
@@ -198,7 +198,7 @@ Pick the provider package matching the model you've chosen. Anthropic is the def
 ANTHROPIC_API_KEY: z.string().min(1),
 ```
 
-Server-only. The streaming endpoint runs on the server; the client never sees the key. Push to Convex with `just env-sync` if you call the LLM from a Convex action.
+Server-only. The streaming endpoint runs on the server; the client never sees the key. Push to Convex with `just convex-env-sync` if you call the LLM from a Convex action.
 
 **Where the code lives:**
 
@@ -234,7 +234,7 @@ export async function POST(req: Request) {
 ## Checklist when installing a new integration
 
 1. Add env vars to `env.ts` (server vs client block matters — server keys never appear in the client bundle).
-2. Add the same vars to `.env.local`; if Convex needs them, `just env-sync`.
+2. Add the same vars to `.env.local`; if Convex needs them, `just convex-env-sync`.
 3. Create the `lib/<integration>.ts` helper so there's exactly one entry point.
 4. Wire the appropriate Convex layer:
    - **Email, AI background jobs** → Convex action, optionally `ctx.scheduler.runAfter`.

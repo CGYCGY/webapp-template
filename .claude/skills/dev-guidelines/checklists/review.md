@@ -65,7 +65,7 @@ Use this when reviewing any PR in this codebase. Keywords below are the coding-s
 
 - [ ] New env vars added to `env.ts` server vs client correctly. Secrets never in client.
 - [ ] `.env.local.example` updated.
-- [ ] `just env-sync` run if Convex needs the new var.
+- [ ] `just convex-env-sync` run if Convex needs the new var.
 
 ## Testing
 

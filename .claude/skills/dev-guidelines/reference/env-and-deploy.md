@@ -45,9 +45,9 @@ Importing `env.ts` from the Next config makes `bun run build` fail when a requir
 | Runtime | Validated by | Set via | Examples |
 |---|---|---|---|
 | Next.js app | `env.ts` (`@t3-oss/env-nextjs`) | `.env.local` (`.env.production` for prod build) | `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `SENTRY_DSN`, `WORKOS_API_KEY` |
-| Convex backend | none — accessed via `process.env` in queries/mutations/actions | `bunx convex env set KEY VALUE` (or `just env-set`) | `R2_ACCOUNT_ID`, `R2_SECRET_ACCESS_KEY`, `WORKOS_WEBHOOK_SECRET` |
+| Convex backend | none — accessed via `process.env` in queries/mutations/actions | `bunx convex env set KEY VALUE` (or `just convex-env-set`) | `R2_ACCOUNT_ID`, `R2_SECRET_ACCESS_KEY`, `WORKOS_WEBHOOK_SECRET` |
 
-Vars used in BOTH runtimes (e.g. `WORKOS_*` when Convex calls WorkOS): keep in `env.ts`, then `just env-sync` reads `.env.local`, filters for the configured prefixes, and pushes them to Convex. Run it after editing any synced var.
+Vars used in BOTH runtimes (e.g. `WORKOS_*` when Convex calls WorkOS): keep in `env.ts`, then `just convex-env-sync` reads `.env.local`, filters for the configured prefixes, and pushes them to Convex. Run it after editing any synced var.
 
 Rule: if **only** Convex reads a var, do NOT add it to `env.ts` — it noises up validation for no benefit. `R2_*` are the canonical Convex-only example.
 
@@ -57,7 +57,7 @@ Rule: if **only** Convex reads a var, do NOT add it to `env.ts` — it noises up
 2. Add to the `runtimeEnv` map.
 3. Add to `.env.local` with a real value.
 4. Add to `.env.local.example` with a placeholder so other developers know it exists.
-5. If used by Convex handlers: extend `SYNC_PREFIXES` in `justfile` and run `just env-sync`.
+5. If used by Convex handlers: extend `SYNC_PREFIXES` in `justfile` and run `just convex-env-sync`.
 6. If used at build time and prefixed `NEXT_PUBLIC_`: also add `ARG`/`ENV` lines to `deploy/Dockerfile`.
 
 ## Dockerfile contract
@@ -91,5 +91,5 @@ Set by the Sentry / PostHog / R2 backport. See `docs/integrations.md` for usage;
 
 - Don't `process.env.FOO` directly outside `env.ts` — use `import { env } from '@/env'` so types are checked.
 - Don't put a secret in the `client` block. Secrets are server-only.
-- Don't skip `just env-sync` after editing `WORKOS_*` — Convex won't see the new value.
+- Don't skip `just convex-env-sync` after editing `WORKOS_*` — Convex won't see the new value.
 - Don't put non-secret-but-changeable values (model names, feature flags) in env. Hardcode in a `lib/` module so changes are diffable.

@@ -70,7 +70,7 @@ Before writing any Next.js code, read the relevant guide in `node_modules/next/d
 | `just check` | Biome lint + format + organize imports, writes changes |
 | `just test` | Vitest unit tests (CI mode) |
 | `just e2e` | Playwright smoke (needs Convex dev + `.env.test` user) |
-| `just env-sync` | Push `WORKOS_*` vars from `.env.local` to Convex |
+| `just convex-env-sync` | Push `WORKOS_*` vars from `.env.local` to Convex |
 | `just deploy [tag]` | `deploy/deploy.sh`: build image → push GHCR → Coolify webhook |
 
 Run `just check && just typecheck && just test` before every commit. Lefthook enforces Biome pre-commit and Vitest + typecheck (parallel) pre-push.

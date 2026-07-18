@@ -104,7 +104,7 @@ return { subject: identity.subject };
 |---|---|
 | All Convex queries return `null` for a signed-in user | `convex/auth.config.ts` not deployed, or `WORKOS_CLIENT_ID` mismatch |
 | A diagnostic `whoami` throws "No Convex identity" | JWT bridge broken — check Convex env `WORKOS_CLIENT_ID` matches `NEXT_PUBLIC_WORKOS_CLIENT_ID` |
-| Convex calls work in dev but fail in prod | Convex env not synced — run `just env-sync` |
+| Convex calls work in dev but fail in prod | Convex env not synced — run `just convex-env-sync` |
 
 A `whoami`-style query that **intentionally throws** when there's no identity (wrapped in a class error boundary — see `reference/architecture.md` → Error handling) makes this failure mode visible in 30 seconds instead of 30 minutes.
 
@@ -182,7 +182,7 @@ export default http;
 
 ### 3. WorkOS dashboard config
 
-Point the webhook URL in the WorkOS dashboard at the Convex URL above. Set the signing secret to match `WORKOS_WEBHOOK_SECRET` in Convex env. Run `just env-sync` after editing `.env.local`.
+Point the webhook URL in the WorkOS dashboard at the Convex URL above. Set the signing secret to match `WORKOS_WEBHOOK_SECRET` in Convex env. Run `just convex-env-sync` after editing `.env.local`.
 
 ### Failure modes — webhook
 
@@ -196,7 +196,7 @@ Point the webhook URL in the WorkOS dashboard at the Convex URL above. Set the s
 
 1. Create `convex/<provider>.ts` mirroring the `authKit.events(...)` shape — one events object dispatching by event type.
 2. Register the routes on the HTTP router in `convex/http.ts`.
-3. Add the provider's webhook signing secret to `env.ts` server block, `.env.local`, and `just env-sync` so Convex sees it.
+3. Add the provider's webhook signing secret to `env.ts` server block, `.env.local`, and `just convex-env-sync` so Convex sees it.
 4. **Verify the signature** inside the `httpAction` **before** dispatching to any mutation.
 5. Store relevant rows in Convex tables; expose query helpers that the UI consumes via `useQuery`.
 

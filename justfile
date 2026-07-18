@@ -1,8 +1,4 @@
-# ============================================================================
-# webapp-template justfile
-# ============================================================================
-# Next.js 16 + Bun + Convex + WorkOS. Run `just --list` to see all recipes.
-# ============================================================================
+# Recipe naming follows docs/JUSTFILE-CONVENTIONS.md — one vocabulary across all web/mobile repos.
 
 set shell := ["bash", "-cu"]
 set dotenv-filename := ".env.local"
@@ -10,10 +6,6 @@ set dotenv-filename := ".env.local"
 # Show available recipes
 default:
     @just --list
-
-# ============================================================================
-# LOCAL DEVELOPMENT
-# ============================================================================
 
 # Start Convex dev + Next.js frontend together (tmux split)
 [group('dev')]
@@ -27,8 +19,8 @@ dev:
         tmux attach -t dev
     else
         echo "Run in separate terminals:"
-        echo "  just dev-convex"
-        echo "  just dev-frontend"
+        echo "  just convex-dev"
+        echo "  just start"
     fi
 
 # Stop all dev processes (tmux session + standalone)
@@ -41,40 +33,41 @@ dev-stop:
     pkill -f 'next dev' 2>/dev/null && echo "Killed Next.js dev process."
     echo "Dev stopped."
 
+# Start Next.js dev server only
+[group('dev')]
+start *args:
+    bun run dev {{ args }}
+
 # Start Convex dev sync only (watches convex/, pushes to deployment).
 # CONVEX_TMPDIR keeps esbuild's tmp on the same filesystem as the project — required on
 # WSL where /tmp lives on a different filesystem and triggers duplicate-output errors.
-[group('dev')]
-dev-convex:
+[group('convex')]
+convex-dev:
     mkdir -p ./.convex-tmp && CONVEX_TMPDIR=./.convex-tmp bunx convex dev
 
-# Start Next.js dev server only
-[group('dev')]
-dev-frontend *args:
-    bun run dev {{ args }}
-
-# ============================================================================
-# CONVEX UTILITIES
-# ============================================================================
+# Regenerate Convex client types from the convex/ source tree
+[group('convex')]
+convex-codegen:
+    bunx convex codegen
 
 # Push Convex functions to the production deployment
 [group('convex')]
 convex-deploy:
     bunx convex deploy
 
-# Set a Convex environment variable (usage: just env-set KEY VALUE)
+# Set a Convex environment variable (usage: just convex-env-set KEY VALUE)
 [group('convex')]
-env-set key value:
+convex-env-set key value:
     bunx convex env set -- {{ key }} "{{ value }}"
 
 # List all Convex environment variables
 [group('convex')]
-env-list:
+convex-env-list:
     bunx convex env list
 
 # Sync WORKOS_* runtime env vars from .env.local → Convex deployment
 [group('convex')]
-env-sync:
+convex-env-sync:
     #!/usr/bin/env bash
     set -euo pipefail
     ENV_FILE=".env.local"
@@ -106,28 +99,20 @@ env-sync:
     done < <(grep -E '^[A-Z_]+=' "$ENV_FILE")
     echo "Synced $synced, skipped $skipped unchanged."
 
-# ============================================================================
-# BUILD & DEPLOY
-# ============================================================================
-
 # Build production bundle (local)
 [group('build')]
 build:
     bun run build
 
-# Start production server (after `just build`)
+# Serve the production build locally (after `just build`)
 [group('build')]
-start:
+serve:
     bun run start
 
 # Build image, push to GHCR, and trigger Coolify redeploy (usage: just deploy [tag])
-[group('build')]
+[group('deploy')]
 deploy tag="latest":
     bash deploy/deploy.sh {{ tag }}
-
-# ============================================================================
-# CODE QUALITY
-# ============================================================================
 
 # Type-check the whole project
 [group('quality')]
@@ -160,10 +145,6 @@ test:
 e2e:
     bun run e2e
 
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
-
 # Install all dependencies
 [group('deps')]
 install:
@@ -174,21 +155,18 @@ install:
 update:
     bun update
 
-# ============================================================================
-# MIRROR MODE (optional)
-# ============================================================================
-# If this product later gains a mobile sibling (e.g. ../mobile-template) that
-# shares the same Convex backend, mobile owns convex/ and this repo mirrors it.
+# Mirror mode: if this product later gains a mobile sibling (e.g. ../mobile-template)
+# that shares the same Convex backend, mobile owns convex/ and this repo mirrors it.
 # Adjust the path and uncomment to enable.
 #
 # mobile := "../mobile-template"
 #
 # # Pull convex/ from mobile (one-way; mobile is the source of truth)
 # [group('mirror')]
-# sync-convex:
+# convex-mirror:
 #     rsync -a --delete {{ mobile }}/convex/ ./convex/
 #
 # # Run convex dev from the mobile repo (backend lives there)
 # [group('mirror')]
-# convex-mobile:
+# convex-dev-mobile:
 #     cd {{ mobile }} && bunx convex dev

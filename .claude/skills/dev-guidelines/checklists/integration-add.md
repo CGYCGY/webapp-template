@@ -16,7 +16,7 @@ This codebase intentionally ships without Resend, Paddle, pino, or Vercel AI SDK
 - [ ] Add the same keys to `runtimeEnv` map in `env.ts`.
 - [ ] Add real values to `.env.local`.
 - [ ] Add placeholders to `.env.local.example`.
-- [ ] If Convex needs the var: extend `SYNC_PREFIXES` in `justfile` and run `just env-sync`.
+- [ ] If Convex needs the var: extend `SYNC_PREFIXES` in `justfile` and run `just convex-env-sync`.
 - [ ] If `NEXT_PUBLIC_*` and needed at build time: add `ARG`/`ENV` lines to `deploy/Dockerfile` and pass through `deploy/deploy.sh`.
 
 ## 2. Helper module

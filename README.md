@@ -24,13 +24,13 @@ Opinionated starter for full-stack web apps.
 bun install
 cp .env.local.example .env.local       # fill in Convex + WorkOS values
 bunx convex dev                         # one-time: provisions a deployment
-just env-sync                           # push WORKOS_* into Convex
+just convex-env-sync                           # push WORKOS_* into Convex
 just dev                                # tmux split: Convex sync + Next.js
 ```
 
 Open <http://localhost:3000>. Sign in via WorkOS → `/dashboard` reads your identity from Convex.
 
-If `tmux` isn't available, run `just dev-convex` and `just dev-frontend` in separate terminals.
+If `tmux` isn't available, run `just convex-dev` and `just start` in separate terminals.
 
 ## Environment variables
 
@@ -54,7 +54,7 @@ Schemas live in `env.ts`. Missing or malformed values fail the build, not runtim
 |-------------------|-----------------------------------------------------------|
 | `just dev`        | Convex sync + Next.js dev in a tmux split                 |
 | `just dev-stop`   | Kill the tmux session and any stray dev processes         |
-| `just env-sync`   | Sync `WORKOS_*` from `.env.local` into Convex             |
+| `just convex-env-sync`   | Sync `WORKOS_*` from `.env.local` into Convex             |
 | `just check`      | Biome: lint + format + organize imports                   |
 | `just typecheck`  | `tsc --noEmit`                                            |
 | `just test`       | Vitest (unit)                                             |
