@@ -31,10 +31,13 @@ Key distinctions the vocabulary encodes:
 |---|---|---|---|
 | deps | `install` `update` | | |
 | dev | `dev` `dev-stop` `start` | | `ios` `android` `prebuild` |
-| build | | `build` `serve` | `apk` `apk-install` `apk-ship` `apk-share` |
-| deploy | | `deploy` | `eas-build-ios` `eas-build-android` `eas-submit-ios` `eas-submit-android` `eas-update` `eas-env-push` |
+| build | | `build` `serve` | `apk` `apk-share` `apk-install`\* `apk-ship`\* |
+| deploy | | `deploy` | `eas-build-ios` `eas-build-android` `eas-submit-ios` `eas-submit-android` `eas-update` `eas-env-push`\* |
 | convex | `convex-dev` `convex-codegen` `convex-deploy` `convex-env-set` `convex-env-list` `convex-env-sync` | | |
 | quality | `check` `lint` `fmt` `typecheck` `test` `e2e` | | |
+
+\* Reserved names, not shipped in the templates — adopt when a project needs them
+(expari has all three). Reserving keeps the name consistent when they do appear.
 
 Project-specific extras are fine — they must follow rule 1 and land in the right group.
 Internal helpers are `_`-prefixed and ungrouped.
